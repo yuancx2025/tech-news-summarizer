@@ -11,23 +11,41 @@ This project builds a full-stack pipeline to scrape, clean, summarize, and visua
 
 ## 🗂️ Project Structure
 ```text
-llm‑tech‑news‑summarizer/
+llm-tech-news-summarizer/
+│
 ├── data/
-│   ├── raw/               # Unprocessed scraped articles (JSON or HTML)
-│   └── processed/         # Cleaned data in CSV/SQLite
-├── model/
-│   ├── summarizer.py      # Summarization pipeline wrapper
-│   └── test_inference.py  # Manual testing script
+│   ├── raw/                  # raw scraped data (unprocessed)
+│   │   └── articles.jsonl
+│   ├── processed/            # cleaned & standardized data
+│   │   ├── articles_clean.csv
+│   │   └── news.sqlite
+
 ├── scripts/
-│   ├── scraper.py         # Scrape from RSS or newspaper3k
-│   └── cleaner.py         # Clean and standardize scraped articles
+│   ├── scrape_newspaper.py   # scrape news articles
+│   ├── io_raw.py             # helper functions to save raw data
+│   ├── sqlite_raw.py         # store raw data in SQLite
+│   ├── cleaner.py            # clean & filter raw data → processed
+│   └── ...                   # future utils, e.g., summarizer helpers
+│
+├── model/
+│   ├── summarizer.py         # summarization pipeline (vanilla)
+│   └── test_inference.py     # quick tests for summarizer
+│
 ├── notebooks/
-│   └── eda.ipynb          # Exploratory analysis notebook
-├── app/                   # Streamlit or Gradio UI (Week 5)
-├── .gitignore
+│   ├── eda.ipynb              # exploratory data analysis
+│   └── ...
+│
+├── app/                      # Streamlit or Gradio front-end
+│   └── app.py
+│
+├── config/
+│   └── feeds.yml             # list of sources/domains to scrape
+│
 ├── requirements.txt
+├── .gitignore
 ├── README.md
 └── LICENSE
+
 ```
 
 ## 🚧 Project Milestones
