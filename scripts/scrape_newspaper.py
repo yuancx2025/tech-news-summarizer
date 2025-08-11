@@ -26,7 +26,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from typing import Dict, Iterable, List, Optional
-
+import json
 import yaml
 from newspaper import Article, build
 
@@ -99,7 +99,7 @@ def crawl_domain(domain: str, limit: int, lang: str, per_request_sleep: float = 
             # Quality gate: skip tiny/boilerplate pages
             if len(row["text"]) < 300:
                 continue
-            # In-run dedupe: if same content appears under multiple URLs
+            # In-run duplicate: if same content appears under multiple URLs
             if row["content_hash"] in seen_hashes:
                 continue
             seen_hashes.add(row["content_hash"])
@@ -134,15 +134,15 @@ def ensure_db(path: str) -> sqlite3.Connection:
     """Create the SQLite DB (and schema) if missing; return a live connection."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     con = sqlite3.connect(path)
-    # Enable WAL for better concurrent read behavior (optional but nice)
+    # Enable WAL for better concurrent read behavior
     try:
         con.execute("PRAGMA journal_mode=WAL;")
     except Exception:
         pass
     with con:
-        for stmt in SCHEMA.strip().split(";\n"):
-            if stmt.strip():
-                con.execute(stmt)
+        for statement in SCHEMA.strip().split(";\n"):
+            if statement.strip():
+                con.execute(statement)
     return con
 
 def upsert_rows(con: sqlite3.Connection, rows: Iterable[Dict]) -> int:
@@ -194,9 +194,11 @@ def load_config(cfg_path: str) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Scrape tech news with newspaper3k")
+    
     # Primary mode: read a list of domains from YAML
     ap.add_argument("--config", default="config/feeds.yml",
                     help="YAML file listing sources/domains/limits")
+    
     # Convenience overrides (optional): scrape a single domain or a single URL
     ap.add_argument("--domain", help="Override: scrape this domain only (e.g., https://techcrunch.com)")
     ap.add_argument("--url", help="Override: scrape a single article URL")
@@ -263,7 +265,10 @@ def main() -> None:
 
     # Always write JSONL (raw append or stdout)
     write_jsonl(args.out_jsonl, all_rows)
-    print(f"[INFO] Wrote JSONL → {args.out-jsonl if args.out_jsonl == '-' else args.out_jsonl}", file=sys.stderr)
+    # print(f"[INFO] Wrote JSONL → {args.out-jsonl if args.out_jsonl == '-' else args.out_jsonl}", file=sys.stderr)
+    dest = "stdout" if args.out_jsonl == "-" else args.out_jsonl
+    print(f"[INFO] Wrote JSONL → {dest}", file=sys.stderr)
+
 
     # Optionally write SQLite (processed / dedup-friendly)
     if not args.no_sqlite:
