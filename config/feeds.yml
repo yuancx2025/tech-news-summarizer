@@ -3,26 +3,26 @@ sources:
     limit: 2
     language: en
 
-  - domain: https://www.theverge.com/tech
-    limit: 2
-    language: en
+  # - domain: https://www.theverge.com/tech
+  #   limit: 2
+  #   language: en
 
-  - domain: https://www.wired.com
-    limit: 2
-    language: en
+  # - domain: https://www.wired.com
+  #   limit: 2
+  #   language: en
 
-  - domain: https://arstechnica.com
-    limit: 2
-    language: en
+  # - domain: https://arstechnica.com
+  #   limit: 2
+  #   language: en
 
-  - domain: https://thenextweb.com
-    limit: 2
-    language: en
+  # - domain: https://thenextweb.com
+  #   limit: 2
+  #   language: en
 
-  - domain: https://www.zdnet.com
-    limit: 2
-    language: en
+  # - domain: https://www.zdnet.com
+  #   limit: 2
+  #   language: en
 
-  - domain: https://venturebeat.com
-    limit: 2
-    language: en
+  # - domain: https://venturebeat.com
+  #   limit: 2
+  #   language: en

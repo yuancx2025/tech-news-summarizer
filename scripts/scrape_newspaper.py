@@ -56,6 +56,7 @@ def article_to_row(a: Article, url: str) -> Dict:
     """
     authors = a.authors or []
     keywords = getattr(a, "keywords", []) or []
+    sentiment = getattr(a, "sentiment", None)
 
     row = {
         "url": url,
@@ -66,6 +67,7 @@ def article_to_row(a: Article, url: str) -> Dict:
         "summary": getattr(a, "summary", None),
         "keywords": json.dumps(keywords, ensure_ascii=False),
         "content_hash": sha256(a.text),
+        "sentiment": json.dumps(sentiment, ensure_ascii=False)
         # "fetched_at": utc_now_iso(),
     }
     return row
@@ -119,12 +121,11 @@ CREATE TABLE IF NOT EXISTS articles (
   url TEXT UNIQUE,
   title TEXT,
   authors TEXT,
-  -- published TEXT,
   text TEXT,
   summary TEXT,
   keywords TEXT,
   content_hash TEXT,
-  -- fetched_at TEXT
+  sentiment TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_published ON articles(published);
 CREATE INDEX IF NOT EXISTS idx_content_hash ON articles(content_hash);
@@ -140,9 +141,7 @@ def ensure_db(path: str) -> sqlite3.Connection:
     except Exception:
         pass
     with con:
-        for statement in SCHEMA.strip().split(";\n"):
-            if statement.strip():
-                con.execute(statement)
+        con.executescript(SCHEMA)
     return con
 
 def upsert_rows(con: sqlite3.Connection, rows: Iterable[Dict]) -> int:
