@@ -36,16 +36,16 @@ def sha256(s: Optional[str]) -> str:
     """Stable fingerprint for deduplication based on article text."""
     return hashlib.sha256((s or "").encode("utf-8")).hexdigest()
 
-def utc_now_iso() -> str:
-    """UTC timestamp in ISO 8601 (for fetched_at)."""
-    return datetime.now(timezone.utc).isoformat()
+# def utc_now_iso() -> str:
+#     """UTC timestamp in ISO 8601 (for fetched_at)."""
+#     return datetime.now(timezone.utc).isoformat()
 
-def to_iso_or_none(dt) -> Optional[str]:
-    """Safely convert a datetime (or None) to ISO string."""
-    try:
-        return dt.isoformat() if dt else None
-    except Exception:
-        return None
+# def to_iso_or_none(dt) -> Optional[str]:
+#     """Safely convert a datetime (or None) to ISO string."""
+#     try:
+#         return dt.isoformat() if dt else None
+#     except Exception:
+#         return None
 
 # ----------------------------- Article shaping ----------------------------- #
 
@@ -61,12 +61,12 @@ def article_to_row(a: Article, url: str) -> Dict:
         "url": url,
         "title": a.title or None,
         "authors": json.dumps(authors, ensure_ascii=False),
-        "published": to_iso_or_none(getattr(a, "publish_date", None)),
+        # "published": to_iso_or_none(getattr(a, "publish_date", None)),
         "text": a.text or "",
         "summary": getattr(a, "summary", None),
         "keywords": json.dumps(keywords, ensure_ascii=False),
         "content_hash": sha256(a.text),
-        "fetched_at": utc_now_iso(),
+        # "fetched_at": utc_now_iso(),
     }
     return row
 
@@ -119,12 +119,12 @@ CREATE TABLE IF NOT EXISTS articles (
   url TEXT UNIQUE,
   title TEXT,
   authors TEXT,
-  published TEXT,
+  -- published TEXT,
   text TEXT,
   summary TEXT,
   keywords TEXT,
   content_hash TEXT,
-  fetched_at TEXT
+  -- fetched_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_published ON articles(published);
 CREATE INDEX IF NOT EXISTS idx_content_hash ON articles(content_hash);
@@ -183,9 +183,12 @@ def load_config(cfg_path: str) -> dict:
     """
     Load YAML config with structure:
     sources:
-      - domain: "https://techcrunch.com"
-        limit: 40
-        language: "en"
+    - domain: https://techcrunch.com
+        limit: 5
+        language: en
+    - domain: https://thenextweb.com
+        limit: 3
+        language: en
     """
     with open(cfg_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
@@ -268,7 +271,6 @@ def main() -> None:
     # print(f"[INFO] Wrote JSONL → {args.out-jsonl if args.out_jsonl == '-' else args.out_jsonl}", file=sys.stderr)
     dest = "stdout" if args.out_jsonl == "-" else args.out_jsonl
     print(f"[INFO] Wrote JSONL → {dest}", file=sys.stderr)
-
 
     # Optionally write SQLite (processed / dedup-friendly)
     if not args.no_sqlite:
