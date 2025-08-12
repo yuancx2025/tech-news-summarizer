@@ -36,16 +36,16 @@ def sha256(s: Optional[str]) -> str:
     """Stable fingerprint for deduplication based on article text."""
     return hashlib.sha256((s or "").encode("utf-8")).hexdigest()
 
-# def utc_now_iso() -> str:
-#     """UTC timestamp in ISO 8601 (for fetched_at)."""
-#     return datetime.now(timezone.utc).isoformat()
+def utc_now_iso() -> str:
+    """UTC timestamp in ISO 8601 (for fetched_at)."""
+    return datetime.now(timezone.utc).isoformat()
 
-# def to_iso_or_none(dt) -> Optional[str]:
-#     """Safely convert a datetime (or None) to ISO string."""
-#     try:
-#         return dt.isoformat() if dt else None
-#     except Exception:
-#         return None
+def to_iso_or_none(dt) -> Optional[str]:
+    """Safely convert a datetime (or None) to ISO string."""
+    try:
+        return dt.isoformat() if dt else None
+    except Exception:
+        return None
 
 # ----------------------------- Article shaping ----------------------------- #
 
@@ -62,13 +62,13 @@ def article_to_row(a: Article, url: str) -> Dict:
         "url": url,
         "title": a.title or None,
         "authors": json.dumps(authors, ensure_ascii=False),
-        # "published": to_iso_or_none(getattr(a, "publish_date", None)),
+        "published": to_iso_or_none(getattr(a, "publish_date", None)),
         "text": a.text or "",
         "summary": getattr(a, "summary", None),
         "keywords": json.dumps(keywords, ensure_ascii=False),
         "content_hash": sha256(a.text),
-        "sentiment": json.dumps(sentiment, ensure_ascii=False)
-        # "fetched_at": utc_now_iso(),
+        "sentiment": json.dumps(sentiment, ensure_ascii=False),
+        "fetched_at": utc_now_iso()
     }
     return row
 
@@ -121,11 +121,13 @@ CREATE TABLE IF NOT EXISTS articles (
   url TEXT UNIQUE,
   title TEXT,
   authors TEXT,
+  published TEXT,
   text TEXT,
   summary TEXT,
   keywords TEXT,
   content_hash TEXT,
-  sentiment TEXT
+  sentiment TEXT,
+  fetched_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_published ON articles(published);
 CREATE INDEX IF NOT EXISTS idx_content_hash ON articles(content_hash);
@@ -133,7 +135,15 @@ CREATE INDEX IF NOT EXISTS idx_content_hash ON articles(content_hash);
 
 def ensure_db(path: str) -> sqlite3.Connection:
     """Create the SQLite DB (and schema) if missing; return a live connection."""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    # Handle special case where path is "-" (stdout equivalent)
+    if path == "-":
+        raise ValueError("Cannot use '-' for SQLite output. Use --no-sqlite to skip SQLite writing.")
+    
+    # Create directory if it doesn't exist
+    dirname = os.path.dirname(path)
+    if dirname:  # Only create directory if there is a directory component
+        os.makedirs(dirname, exist_ok=True)
+    
     con = sqlite3.connect(path)
     # Enable WAL for better concurrent read behavior
     try:
