@@ -30,6 +30,11 @@ import json
 import yaml
 from newspaper import Article, build
 
+from src.schema import SCHEMA
+from src.cleaning import (
+    normalize_url, clean_text, content_hash, utc_now_iso, validate_row, MIN_CHARS
+)
+
 # ----------------------------- Utility helpers ----------------------------- #
 
 def sha256(s: Optional[str]) -> str:
@@ -46,6 +51,16 @@ def to_iso_or_none(dt) -> Optional[str]:
         return dt.isoformat() if dt else None
     except Exception:
         return None
+    
+def validate_row(row: dict, min_chars: int = MIN_CHARS) -> list[str]:
+    """Return a list of missing/invalid fields; empty list means OK."""
+    problems = []
+    if not row.get("title"):
+        problems.append("title")
+    txt = row.get("text") or ""
+    if len(txt) < min_chars:
+        problems.append(f"text<{min_chars}")
+    return problems
 
 # ----------------------------- Article shaping ----------------------------- #
 
@@ -67,7 +82,7 @@ def article_to_row(a: Article, url: str) -> Dict:
         "summary": getattr(a, "summary", None),
         "keywords": json.dumps(keywords, ensure_ascii=False),
         "content_hash": sha256(a.text),
-        "sentiment": json.dumps(sentiment, ensure_ascii=False),
+        "sentiment": "pending",
         "fetched_at": utc_now_iso()
     }
     return row
@@ -86,6 +101,7 @@ def parse_url(url: str, lang: str = "en", request_timeout: int = 20) -> Dict:
         pass
     return article_to_row(art, url)
 
+
 def crawl_domain(domain: str, limit: int, lang: str, per_request_sleep: float = 0.4) -> List[Dict]:
     """
     Discover up to `limit` article URLs from a domain and parse each.
@@ -98,40 +114,28 @@ def crawl_domain(domain: str, limit: int, lang: str, per_request_sleep: float = 
     for art in paper.articles[: max(0, limit)]:
         try:
             row = parse_url(art.url, lang=lang)
-            # Quality gate: skip tiny/boilerplate pages
-            if len(row["text"]) < 300:
+
+            # Validate required fields
+            issues = validate_row(row, MIN_CHARS)
+            if issues:
+                print(f"[WARN] Skipping {row['url']} -> {','.join(issues)}", file=sys.stderr)
                 continue
-            # In-run duplicate: if same content appears under multiple URLs
+
+            # In-run dedupe
             if row["content_hash"] in seen_hashes:
+                print(f"[INFO] Duplicate by content_hash, skipping {row['url']}", file=sys.stderr)
                 continue
             seen_hashes.add(row["content_hash"])
+
             rows.append(row)
-            # Politeness: tiny delay per fetch to avoid hammering sites
             if per_request_sleep > 0:
                 time.sleep(per_request_sleep)
+
         except Exception as e:
             print(f"[WARN] {art.url} -> {e}", file=sys.stderr)
     return rows
 
 # ----------------------------- Storage: SQLite ----------------------------- #
-
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS articles (
-  id INTEGER PRIMARY KEY,
-  url TEXT UNIQUE,
-  title TEXT,
-  authors TEXT,
-  published TEXT,
-  text TEXT,
-  summary TEXT,
-  keywords TEXT,
-  content_hash TEXT,
-  sentiment TEXT,
-  fetched_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_published ON articles(published);
-CREATE INDEX IF NOT EXISTS idx_content_hash ON articles(content_hash);
-"""
 
 def ensure_db(path: str) -> sqlite3.Connection:
     """Create the SQLite DB (and schema) if missing; return a live connection."""
@@ -155,19 +159,13 @@ def ensure_db(path: str) -> sqlite3.Connection:
     return con
 
 def upsert_rows(con: sqlite3.Connection, rows: Iterable[Dict]) -> int:
-    """
-    Insert rows; skip if URL already exists (UNIQUE). Returns number inserted.
-    We keep INSERT OR IGNORE to avoid exceptions on duplicates.
-    """
     sql = """
     INSERT OR IGNORE INTO articles
-      (url, title, authors, published, text, summary, keywords, content_hash, fetched_at)
-    VALUES (:url, :title, :authors, :published, :text, :summary, :keywords, :content_hash, :fetched_at)
+      (url, title, authors, published, text, summary, keywords, content_hash, sentiment, fetched_at)
+    VALUES (:url, :title, :authors, :published, :text, :summary, :keywords, :content_hash, :sentiment, :fetched_at)
     """
     with con:
         cur = con.executemany(sql, rows)
-        # sqlite3.Cursor.rowcount returns number of rows modified by the *last* statement,
-        # but for executemany it generally returns total changes for this batch.
         return cur.rowcount if cur.rowcount is not None else 0
 
 # ----------------------------- Storage: JSONL ------------------------------ #
