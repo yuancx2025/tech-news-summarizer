@@ -1,4 +1,6 @@
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from src.cleaning import normalize_url, clean_text, content_hash, validate_row
 
 def test_normalize_url_strips_tracking():
@@ -16,7 +18,7 @@ def test_clean_text_collapses_whitespace_and_unidecodes():
 
 def test_content_hash_stable_on_equivalent_text():
     a = "Hello—world"
-    b = "Hello-world"  # after clean_text + unidecode they should be equivalent
+    b = "Hello--world"  # after clean_text + unidecode they should be equivalent
     # Note: content_hash should be computed AFTER clean_text in pipeline
     assert content_hash(clean_text(a)) == content_hash(clean_text(b))
 

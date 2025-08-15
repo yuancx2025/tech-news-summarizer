@@ -1,4 +1,6 @@
 import sqlite3, os, tempfile
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from src.schema import SCHEMA
 
 def test_schema_creates_tables():

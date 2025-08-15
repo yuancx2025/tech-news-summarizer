@@ -47,7 +47,7 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 # ---------- Validation ----------
-def validate_row(row: Dict, min_chars: int = MIN_CHARS_DEFAULT) -> List[str]:
+def validate_row(row: Dict, min_chars: int = MIN_CHARS) -> List[str]:
     """
     Return list of problems for a row (empty list means OK).
     Checks: title present, text length.
