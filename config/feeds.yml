@@ -1,28 +1,28 @@
 sources:
   - domain: https://techcrunch.com
-    limit: 10
+    limit: 100
     language: en
 
   - domain: https://www.theverge.com/tech
-    limit: 10
+    limit: 100
     language: en
 
   - domain: https://www.wired.com
-    limit: 10
+    limit: 100
     language: en
 
   - domain: https://arstechnica.com
-    limit: 10
+    limit: 100
     language: en
 
   - domain: https://thenextweb.com
-    limit: 10
+    limit: 100
     language: en
 
   - domain: https://www.zdnet.com
-    limit: 10
+    limit: 100
     language: en
 
   - domain: https://venturebeat.com
-    limit: 10
+    limit: 100
     language: en
