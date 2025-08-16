@@ -18,32 +18,22 @@ Quick tests:
 
 from __future__ import annotations
 
+import sys, pathlib
+sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))
+
 import argparse
-import hashlib
 import os
 import sqlite3
-import sys
 import time
-from datetime import datetime, timezone
 from typing import Dict, Iterable, List, Optional
 import json
 import yaml
 from newspaper import Article, build
 
 from src.schema import SCHEMA
-from src.cleaning import (
-    normalize_url, clean_text, content_hash, utc_now_iso, validate_row, MIN_CHARS
-)
+from src.cleaning import content_hash, utc_now_iso, validate_row, MIN_CHARS
 
 # ----------------------------- Utility helpers ----------------------------- #
-
-def sha256(s: Optional[str]) -> str:
-    """Stable fingerprint for deduplication based on article text."""
-    return hashlib.sha256((s or "").encode("utf-8")).hexdigest()
-
-def utc_now_iso() -> str:
-    """UTC timestamp in ISO 8601 (for fetched_at)."""
-    return datetime.now(timezone.utc).isoformat()
 
 def to_iso_or_none(dt) -> Optional[str]:
     """Safely convert a datetime (or None) to ISO string."""
@@ -51,16 +41,6 @@ def to_iso_or_none(dt) -> Optional[str]:
         return dt.isoformat() if dt else None
     except Exception:
         return None
-    
-def validate_row(row: dict, min_chars: int = MIN_CHARS) -> list[str]:
-    """Return a list of missing/invalid fields; empty list means OK."""
-    problems = []
-    if not row.get("title"):
-        problems.append("title")
-    txt = row.get("text") or ""
-    if len(txt) < min_chars:
-        problems.append(f"text<{min_chars}")
-    return problems
 
 # ----------------------------- Article shaping ----------------------------- #
 
@@ -81,7 +61,7 @@ def article_to_row(a: Article, url: str) -> Dict:
         "text": a.text or "",
         "summary": getattr(a, "summary", None),
         "keywords": json.dumps(keywords, ensure_ascii=False),
-        "content_hash": sha256(a.text),
+        "content_hash": content_hash(a.text),
         "sentiment": "pending",
         "fetched_at": utc_now_iso()
     }
