@@ -52,8 +52,8 @@ llm-tech-news-summarizer/
 
 | Week | Milestone |
 |------|-----------|
-| 🔄 Week 1 | Scraped and cleaned tech articles |
-| ⏳ Week 2 | Built and evaluated LLM summarizer |
+| ✅ Week 1 | Scraped and cleaned tech articles |
+| 🔄 Week 2 | Built and evaluated LLM summarizer |
 | ⏳ Week 3 | RAG-based improvement with FAISS |
 | ⏳ Week 4 | Tableau visualizations of trends |
 | ⏳ Week 5 | Streamlit app deployment + demo |
