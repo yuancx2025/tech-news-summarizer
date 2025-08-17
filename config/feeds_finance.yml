@@ -25,5 +25,18 @@ sources:
 
   # Tech x finance crossover (often parseable)
   - domain: https://www.theverge.com/money
-    limit: 25
+    limit: 40
     language: en
+
+  - domain: https://www.ft.com/world/us
+    limit: 40
+    language: en
+
+  - domain: https://www.businessinsider.com/finance
+    limit: 40
+    language: en
+
+  - domain: https://www.fool.com/investing
+    limit: 40
+    language: en
+
