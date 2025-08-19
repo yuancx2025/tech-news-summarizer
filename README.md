@@ -19,7 +19,7 @@ llm-tech-news-summarizer/
 │   ├── processed/            # cleaned & standardized data
 │   │   ├── articles_clean.csv
 │   │   └── news.sqlite
-
+│
 ├── scripts/
 │   ├── scrape_newspaper.py   # scrape news articles
 │   ├── io_raw.py             # helper functions to save raw data
