@@ -81,7 +81,6 @@ def parse_url(url: str, lang: str = "en", request_timeout: int = 20) -> Dict:
         pass
     return article_to_row(art, url)
 
-
 def crawl_domain(domain: str, limit: int, lang: str, per_request_sleep: float = 0.4) -> List[Dict]:
     """
     Discover up to `limit` article URLs from a domain and parse each.
