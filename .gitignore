@@ -1,12 +1,50 @@
-# Ignore virtual environments
-venv/
-
-# Ignore system files
+# --- Python build/cache ---
 __pycache__/
-*.pyc
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
 
-# Ignore Jupyter notebook checkpoints
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+
+# --- Jupyter notebook checkpoints ---
 .ipynb_checkpoints/
 
-# Ignore VS Code settings
+# --- Data ---
+data/raw/
+data/processed/
+data/interim/
+*.sqlite
+*.db
+*.csv
+*.jsonl
+*.parquet
+!data/sample/          # keep a small curated sample dataset if needed
+
+# --- Models / logs ---
+models/
+checkpoints/
+*.pt
+*.pth
+*.bin
+logs/
+wandb/
+
+# --- Reports (compiled outputs) ---
+report/*.pdf
+report/*.html
+report/*.docx
+
+# --- System files ---
+.DS_Store
+Thumbs.db
+
+# --- IDE/editor configs ---
 .vscode/
+.idea/
+*.swp
