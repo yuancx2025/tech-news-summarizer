@@ -40,7 +40,7 @@ plt.savefig(REPORT_DIR/"eda_source_bar.png", dpi=160)
 plt.close()
 
 # --- Time series
-df["date_day"] = pd.to_datetime(df["date"]).dt.date
+df["date_day"] = pd.to_datetime(df["date"], format='ISO8601').dt.date
 ts = df.groupby("date_day").size()
 ts.to_csv(REPORT_DIR/"eda_timeseries.csv")
 plt.figure()

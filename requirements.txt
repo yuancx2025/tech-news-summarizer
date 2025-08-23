@@ -11,7 +11,7 @@ requests>=2.31.0
 lxml==4.9.3
 
 # === Text Cleaning & NLP ===
-nltk==3.9.1
+# Note: NLTK removed as dependency - using custom sentence tokenizer instead
 unidecode>=1.3.7
 regex>=2023.10.3
 scikit-learn>=1.4
@@ -34,5 +34,10 @@ tokenizers>=0.15
 sentencepiece>=0.2
 
 
+# === Metrics ===
+rouge-score>=0.1.2
+absl-py>=1.4.0
+
 evaluate
 sumy
+torch
