@@ -41,3 +41,4 @@ absl-py>=1.4.0
 evaluate
 sumy
 torch
+sentence-transformers
