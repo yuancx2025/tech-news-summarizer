@@ -6,7 +6,7 @@ import numpy as np
 import sys
 sys.path.append(str(Path(__file__).resolve().parents[1]))  # repo root
 
-from src.indexes.faiss_store import (
+from src.faiss_store import (
     load_embeddings_npy,
     build_index_flat,
     build_index_ivfpq,
