@@ -85,6 +85,14 @@ class TextRankSummarizer:
                 
                 def tokenize(self, text):
                     return self._tokenizer.tokenize(text)
+                
+                def to_sentences(self, text):
+                    """Alias for tokenize method that sumy expects."""
+                    return self.tokenize(text)
+                
+                def sentences(self, text):
+                    """Another alias that sumy might expect."""
+                    return self.tokenize(text)
             
             # Create parser with custom tokenizer
             parser = self._PlaintextParser.from_string(text_for_parser or "", CustomTokenizer("english"))
@@ -111,15 +119,62 @@ class HFSummarizer:
         max_length: int = 200,
         num_beams: int = 4,
     ):
-        from transformers import pipeline
-        self.pipe = pipeline("summarization", model=model_name, device=device if device is not None else -1)
+        # Set device first to avoid loading models on wrong device
+        if device is not None:
+            import torch
+            if device >= 0:
+                torch.cuda.set_device(device)
+                print(f"Device set to use gpu:{device}")
+            else:
+                print("Device set to use cpu")
+        
+        # Try to load from cache first
+        try:
+            from transformers import pipeline
+            print(f"Loading {model_name}...")
+            
+            # Use more efficient settings
+            self.pipe = pipeline(
+                "summarization", 
+                model=model_name, 
+                device=device if device is not None else -1,
+                torch_dtype="auto",  # Use mixed precision if available
+                model_kwargs={"low_cpu_mem_usage": True}  # Reduce memory usage
+            )
+            print(f"Successfully loaded {model_name}")
+            
+        except Exception as e:
+            print(f"Failed to load {model_name}: {e}")
+            print("Falling back to simple summarization")
+            self.pipe = None
+        
         self.kw = dict(min_length=min_length, max_length=max_length, num_beams=num_beams)
 
     def summarize(self, text: str, sentences: Optional[List[str]] = None) -> str:
         if not text or not text.strip():
             return ""
-        out = self.pipe(text, **self.kw)
-        return out[0]["summary_text"].strip()
+        
+        # If HF model failed to load, use fallback
+        if self.pipe is None:
+            if sentences and isinstance(sentences, list):
+                return " ".join(sentences[:3]).strip()
+            else:
+                import re
+                sents = re.split(r'(?<=[.!?])\s+', text)
+                return " ".join(sents[:3]).strip()
+        
+        try:
+            out = self.pipe(text, **self.kw)
+            return out[0]["summary_text"].strip()
+        except Exception as e:
+            print(f"HF summarization failed: {e}, using fallback")
+            # Fallback to simple extraction
+            if sentences and isinstance(sentences, list):
+                return " ".join(sentences[:3]).strip()
+            else:
+                import re
+                sents = re.split(r'(?<=[.!?])\s+', text)
+                return " ".join(sentences[:3]).strip()
 
 def build_summarizers():
     return {

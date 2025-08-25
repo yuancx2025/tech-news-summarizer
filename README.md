@@ -46,6 +46,16 @@ python -m model.evaluate \
   --limit 100
 ```
 
+### Fast Evaluation (Skip HF Models)
+```bash
+python -m model.evaluate \
+  --pre-jsonl data/processed/preprocessed_2025-08-19.jsonl \
+  --run-name fast_check \
+  --models lead3,textrank \
+  --fast \
+  --limit 100
+```
+
 ### Evaluation with References
 ```bash
 python -m model.evaluate \
@@ -57,10 +67,12 @@ python -m model.evaluate \
 ```
 
 ### Available Models
-- **lead3**: Lead-3 sentences (baseline)
-- **textrank**: TextRank algorithm (custom sentence tokenizer)
-- **distilbart**: DistilBART-CNN model
-- **bart**: BART-Large-CNN model
+- **lead3**: Lead-3 sentences (baseline) - ⚡ Very fast
+- **textrank**: TextRank algorithm (custom sentence tokenizer) - ⚡ Fast
+- **distilbart**: DistilBART-CNN model - 🐌 Slow (first run downloads model)
+- **bart**: BART-Large-CNN model - 🐌 Slow (first run downloads model)
+
+**Note**: HF models (distilbart, bart) are slow on first run due to model downloading. Use `--fast` flag to skip them for quick evaluation.
 
 Results will be saved to `results/<run_name>/` directory.
 
