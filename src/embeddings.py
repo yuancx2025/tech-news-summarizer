@@ -67,11 +67,23 @@ def combine_title_text(
     title = (title or "").strip()
     text = (text or "").strip()
     parts: List[str] = []
+    
     if title:
         # Repeating title can slightly bias similarity toward topical match
-        parts.append((" " + title + " ") * max(1, title_weight))
+        # But ensure we don't exceed max_chars
+        title_part = (" " + title + " ") * max(1, title_weight)
+        if len(title_part) > max_chars:
+            title_part = title_part[:max_chars]
+        parts.append(title_part)
+    
     if text:
-        parts.append(text[:max_chars])
+        # Calculate remaining space for text after title
+        title_length = sum(len(p) for p in parts)
+        remaining_chars = max_chars - title_length
+        if remaining_chars > 0:
+            truncated_text = text[:remaining_chars]
+            parts.append(truncated_text)
+    
     s = "\n".join(p.strip() for p in parts if p.strip())
     return s or ""
 

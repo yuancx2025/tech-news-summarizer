@@ -85,41 +85,68 @@ Results will be saved to `results/<run_name>/` directory.
 
 ## 🗂️ Project Structure
 ```text
-llm-tech-news-summarizer/
+tech-news-summarizer/
+├── 📁 config/                    # Configuration files
+│   ├── feeds.yml                 # News source configurations
+│   └── feeds_finance.yml         # Finance-specific feeds
 │
-├── data/
-│   ├── raw/                  # raw scraped data (unprocessed)
-│   │   └── articles.jsonl
-│   ├── processed/            # cleaned & standardized data
-│   │   ├── articles_clean.csv
-│   │   └── news.sqlite
+├── 📁 data/                      # Data storage and processing
+│   ├── raw/                      # Raw scraped articles
+│   │   ├── articles.jsonl
+│   │   └── articles_2025-08-16.jsonl
+│   └── processed/                # Cleaned and processed data
+│       ├── articles_clean.csv
+│       ├── articles_clean.jsonl
+│       ├── preprocessed_2025-08-19.jsonl
+│       └── preprocessed_2025-08-19_manifest.json
 │
-├── scripts/
-│   ├── scrape_newspaper.py   # scrape news articles
-│   ├── io_raw.py             # helper functions to save raw data
-│   ├── sqlite_raw.py         # store raw data in SQLite
-│   ├── cleaner.py            # clean & filter raw data → processed
-│   └── ...                   # future utils, e.g., summarizer helpers
+├── 📁 model/                     # AI/ML model implementations
+│   ├── __init__.py
+│   ├── evaluate.py               # Model evaluation framework
+│   ├── metrics.py                # Evaluation metrics (ROUGE, BLEU, etc.)
+│   ├── rag_summarizer.py         # RAG-based summarization system
+│   └── summarizers.py            # Multiple summarization models
 │
-├── model/
-│   ├── summarizers.py        # summarization models (Lead-3, TextRank, BART, etc.)
-│   ├── evaluate.py           # evaluation script for comparing models
-│   └── test_inference.py     # quick tests for summarizer
+├── 📁 notebooks/                 # Jupyter notebooks for analysis
+│   ├── eda_articles.py          # Article data exploration
+│   ├── eda_preprocess.py        # Preprocessing analysis
+│   └── eda.ipynb                # Main exploratory analysis
 │
-├── notebooks/
-│   ├── eda.ipynb              # exploratory data analysis
-│   └── ...
+├── 📁 scripts/                   # Automation and utility scripts
+│   ├── __init__.py
+│   ├── bootstrap.py              # Project setup and initialization
+│   ├── build_embeddings.py       # Generate article embeddings
+│   ├── build_faiss_index.py      # Build FAISS vector search index
+│   ├── clean_export_preprocess.py # Data cleaning pipeline
+│   ├── eval_rag_vs_vanilla.py    # RAG vs. standard summarization comparison
+│   ├── rag_batch.py              # Batch RAG processing
+│   ├── run_full_scrape.sh        # Full scraping automation script
+│   └── scrape_newspaper.py       # News article scraper
 │
-├── app/                      # Streamlit or Gradio front-end
-│   └── app.py
+├── 📁 src/                       # Core source code modules
+│   ├── __init__.py
+│   ├── cleaning.py               # Data cleaning and preprocessing
+│   ├── embeddings.py             # Text embedding generation
+│   ├── faiss_store.py            # FAISS vector database operations
+│   └── schema.py                 # Data schemas and validation
 │
-├── config/
-│   └── feeds.yml             # list of sources/domains to scrape
+├── 📁 tests/                     # Comprehensive test suite
+│   ├── __init__.py
+│   ├── test_clean_export_preprocess.py
+│   ├── test_cleaning.py
+│   ├── test_embeddings.py
+│   ├── test_end_to_end_smoke.py
+│   ├── test_faiss_store.py
+│   ├── test_inference.py
+│   ├── test_metrics.py
+│   ├── test_rag.py
+│   └── test_schema.py
 │
-├── requirements.txt
-├── .gitignore
-├── README.md
-└── LICENSE
+├── 📁 venv/                      # Python virtual environment
+├── requirements.txt               # Python dependencies
+├── setup.py                      # Package installation configuration
+├── LICENSE
+└── README.md
 
 ```
 

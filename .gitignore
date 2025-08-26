@@ -16,18 +16,17 @@ env/
 .ipynb_checkpoints/
 
 # --- Data ---
-data/raw/
-data/processed/
-data/interim/
-*.sqlite
-*.db
-*.csv
-*.jsonl
-*.parquet
-!data/sample/          # keep a small curated sample dataset if needed
+# data/raw/
+# data/processed/
+# data/interim/
+# *.sqlite
+# *.db
+# *.csv
+# *.jsonl
+# *.parquet
+# !data/sample/          # keep a small curated sample dataset if needed
 
 # --- Models / logs ---
-models/
 checkpoints/
 *.pt
 *.pth
