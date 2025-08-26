@@ -122,6 +122,7 @@ def build(args):
     print(f"[build_embeddings] encoding with {cfg.model_name} (normalize={cfg.normalize})")
     # chunk in manageable batches to reduce peak memory, but expose a progress bar
     embs_batches: List[np.ndarray] = []
+    
     for i in tqdm(range(0, len(texts), args.batch_size), desc="encoding"):
         batch = texts[i : i + args.batch_size]
         vecs = embedder.encode(batch)

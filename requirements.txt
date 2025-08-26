@@ -42,3 +42,4 @@ evaluate
 sumy
 torch
 sentence-transformers
+faiss_cpu
