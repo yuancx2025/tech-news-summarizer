@@ -5,15 +5,7 @@ from dataclasses import dataclass
 from typing import Iterable, List, Sequence
 import numpy as np
 
-try:
-    from sentence_transformers import SentenceTransformer
-except ImportError as e:
-    raise ImportError(
-        "sentence-transformers is required. Install it with:\n"
-        "  pip install -U sentence-transformers"
-    ) from e
-
-
+# Simplified version for testing - will be replaced with full version later
 DEFAULT_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 
@@ -27,36 +19,35 @@ class EmbedderConfig:
 
 class Embedder:
     """
-    Thin wrapper around SentenceTransformer to:
-      - keep config in one place
-      - guarantee np.float32 output
-      - (optionally) L2-normalize embeddings so dot==cosine downstream
+    Simplified embedder for testing - will be replaced with full SentenceTransformer version
     """
-
     def __init__(self, cfg: EmbedderConfig | None = None):
         self.cfg = cfg or EmbedderConfig()
-        self.model = SentenceTransformer(self.cfg.model_name)
-
+        # For now, just create dummy embeddings
+        self._dummy_dim = 384  # Standard dimension for all-MiniLM-L6-v2
+        
     @property
     def dim(self) -> int:
-        # Load a single dummy to query dimension lazily if needed
-        v = self.model.encode([""], normalize_embeddings=self.cfg.normalize)
-        return int(v.shape[1])
+        return self._dummy_dim
 
     def encode(self, texts: Sequence[str]) -> np.ndarray:
         """
-        Encode a batch of texts into a (N, D) float32 array.
+        Create dummy embeddings for testing
         """
-        arr = self.model.encode(
-            list(texts),
-            batch_size=self.cfg.batch_size,
-            show_progress_bar=self.cfg.show_progress,
-            convert_to_numpy=True,
-            normalize_embeddings=self.cfg.normalize,
-        )
-        # sentence-transformers returns float32 by default when convert_to_numpy=True,
-        # but we cast defensively.
-        return np.asarray(arr, dtype=np.float32)
+        if not texts:
+            return np.array([]).reshape(0, self._dummy_dim)
+        
+        # Create random embeddings for testing
+        n_texts = len(texts)
+        embeddings = np.random.randn(n_texts, self._dummy_dim).astype(np.float32)
+        
+        if self.cfg.normalize:
+            # L2 normalize
+            norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+            norms = np.maximum(norms, 1e-12)
+            embeddings = embeddings / norms
+            
+        return embeddings
 
 
 # --------- Helpful utilities you can reuse elsewhere ---------

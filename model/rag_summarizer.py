@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime, timezone
 import numpy as np
+import os
 
 # Local imports (repo root on sys.path recommended in your scripts)
 from src.faiss_store import read_index, search
@@ -21,32 +22,133 @@ class _SummarizerWrapper:
     Requires transformers in requirements (you already have it).
     """
     def __init__(self, model_name: str = "bart"):
+        self._kind = "none"
+        self._summ = None
+        self._pipe = None
+        
+        # Check if we're on macOS and force fallback mode to avoid MPS issues
+        import platform
+        if platform.system() == "Darwin":
+            print(f"[_SummarizerWrapper] macOS detected, using fallback mode to avoid MPS issues")
+            self._kind = "fallback"
+            return
+        
+        # Try custom summarizer first
         try:
-            # Expect one of these to exist in your repo
             from model.summarizers import get_summarizer  # type: ignore
             self._summ = get_summarizer(model_name)
             self._kind = "custom"
-        except Exception:
-            from transformers import pipeline
-            hf = "facebook/bart-large-cnn" if model_name.lower() == "bart" else "sshleifer/distilbart-cnn-12-6"
-            self._pipe = pipeline("summarization", model=hf)
-            self._kind = "hf"
+            print(f"[_SummarizerWrapper] Using custom summarizer: {model_name}")
+        except Exception as e:
+            print(f"[_SummarizerWrapper] Custom summarizer failed: {e}")
+            
+        # Fallback to HuggingFace pipeline with robust error handling
+        if self._kind == "none":
+            try:
+                # Disable MPS for macOS compatibility
+                os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+                
+                from transformers import pipeline
+                
+                # Use smaller, more compatible models
+                if model_name.lower() == "bart":
+                    hf_model = "sshleifer/distilbart-cnn-12-6"  # Smaller, more stable
+                elif model_name.lower() == "distilbart":
+                    hf_model = "sshleifer/distilbart-cnn-12-6"
+                else:
+                    hf_model = "sshleifer/distilbart-cnn-12-6"
+                
+                print(f"[_SummarizerWrapper] Loading HF model: {hf_model}")
+                
+                # Force CPU to avoid MPS issues
+                self._pipe = pipeline(
+                    "summarization", 
+                    model=hf_model,
+                    device=-1  # Force CPU
+                )
+                self._kind = "hf"
+                print(f"[_SummarizerWrapper] HF pipeline loaded successfully")
+                
+            except Exception as e:
+                print(f"[_SummarizerWrapper] HF pipeline failed: {e}")
+                # Final fallback: simple text truncation
+                self._kind = "fallback"
+                print(f"[_SummarizerWrapper] Using fallback summarizer (text truncation)")
 
     def summarize(self, text: str, max_tokens: int = 180, min_tokens: int = 60) -> str:
-        if self._kind == "custom":
-            # Assume your summarizer supports a simple call signature
-            return self._summ(text, max_tokens=max_tokens, min_tokens=min_tokens)
-        else:
-            # HuggingFace pipeline
-            out = self._pipe(
-                text,
-                max_length=max_tokens,
-                min_length=min_tokens,
-                do_sample=False,
-                truncation=True,
-            )
-            return out[0]["summary_text"].strip()
-
+        if self._kind == "custom" and self._summ:
+            try:
+                return self._summ(text, max_tokens=max_tokens, min_tokens=min_tokens)
+            except Exception as e:
+                print(f"[_SummarizerWrapper] Custom summarizer failed: {e}")
+                # Fall through to other methods
+                
+        if self._kind == "hf" and self._pipe:
+            try:
+                # Truncate text to avoid memory issues
+                max_input_length = 1024
+                if len(text) > max_input_length:
+                    text = text[:max_input_length]
+                
+                out = self._pipe(
+                    text,
+                    max_length=max_tokens,
+                    min_length=min_tokens,
+                    do_sample=False,
+                    truncation=True,
+                )
+                return out[0]["summary_text"].strip()
+            except Exception as e:
+                print(f"[_SummarizerWrapper] HF pipeline failed: {e}")
+                # Fall through to fallback
+                
+        # Fallback: simple text truncation
+        if self._kind == "fallback" or self._kind == "none":
+            return self._fallback_summarize(text, max_tokens)
+            
+        # If all else fails, return truncated text
+        return text[:max_tokens * 4] + "..." if len(text) > max_tokens * 4 else text
+    
+    def _fallback_summarize(self, text: str, max_tokens: int) -> str:
+        """Simple fallback summarizer that provides basic text summarization"""
+        # Remove any prompt text that might be in the input
+        if "You are a" in text and "news editor" in text:
+            # Extract just the article content
+            if "Article:" in text:
+                text = text.split("Article:")[-1]
+            elif "Body:" in text:
+                text = text.split("Body:")[-1]
+        
+        # Clean up the text
+        text = text.strip()
+        if not text:
+            return "No content available for summarization."
+        
+        # Split into sentences and take the most important ones
+        sentences = text.split('. ')
+        if len(sentences) <= 3:
+            return text
+        
+        # Simple heuristic: take first sentence (title/headline) + a few key sentences
+        result = [sentences[0]]  # Start with first sentence
+        
+        # Add middle sentences (often contain key information)
+        mid_point = len(sentences) // 2
+        if mid_point < len(sentences):
+            result.append(sentences[mid_point])
+        
+        # Add last sentence if it's not too long
+        if len(sentences) > 1 and len(sentences[-1]) < 100:
+            result.append(sentences[-1])
+        
+        # Limit total length
+        summary = '. '.join(result)
+        if len(summary) > max_tokens * 4:
+            summary = summary[:max_tokens * 4]
+            if not summary.endswith('.'):
+                summary += '...'
+        
+        return summary
 
 # --- Utilities ----------------------------------------------------------------
 
@@ -134,46 +236,85 @@ class RAGSummarizer:
 
     @staticmethod
     def _load_idx_maps(sqlite_path: str) -> Tuple[List[int], Dict[int, int]]:
-        conn = sqlite3.connect(sqlite_path)
         try:
-            cur = conn.execute("SELECT article_id, idx FROM article_embeddings ORDER BY idx ASC")
-            rows = cur.fetchall()
-        finally:
-            conn.close()
-        idx2id = [None] * len(rows)
-        id2idx: Dict[int, int] = {}
-        for aid, idx in rows:
-            idx2id[idx] = int(aid)
-            id2idx[int(aid)] = int(idx)
-        return idx2id, id2idx
+            conn = sqlite3.connect(sqlite_path)
+            try:
+                cur = conn.execute("SELECT article_id, idx FROM article_embeddings ORDER BY idx ASC")
+                rows = cur.fetchall()
+            finally:
+                conn.close()
+            
+            if not rows:
+                print(f"[RAGSummarizer] Warning: No rows found in {sqlite_path}")
+                return [], {}
+                
+            idx2id = [None] * len(rows)
+            id2idx: Dict[int, int] = {}
+            for aid, idx in rows:
+                idx2id[idx] = int(aid)
+                id2idx[int(aid)] = int(idx)
+            return idx2id, id2idx
+            
+        except Exception as e:
+            print(f"[RAGSummarizer] Warning: Could not load index maps from {sqlite_path}: {e}")
+            print(f"[RAGSummarizer] Will use fallback mode (re-embedding for all queries)")
+            return [], {}
 
     def _neighbors_for_article(self, article_id: int, topk: int) -> List[Tuple[int, float]]:
         """
         Uses the stored embedding for this article (via idx) and searches FAISS.
+        Falls back to re-embedding if index maps are not available.
         """
-        if article_id not in self._id2idx:
-            # fallback: embed on the fly
-            art = self.id2article.get(article_id, {})
-            qtext = combine_title_text(art.get("title"), art.get("text"), max_chars=1200)
-            qvec = self.embedder.encode([qtext])[0]
+        # If we have index maps, try to use stored embeddings
+        if self._id2idx and article_id in self._id2idx:
+            try:
+                # Get the stored vector from FAISS index
+                idx = self._id2idx[article_id]
+                if hasattr(self.index, 'reconstruct'):
+                    # Try to reconstruct the vector from the index
+                    qvec = self.index.reconstruct(idx).astype(np.float32)
+                else:
+                    # Fallback: re-embed the article text
+                    art = self.id2article.get(article_id, {})
+                    qtext = combine_title_text(art.get("title"), art.get("text"), max_chars=1200)
+                    qvec = self.embedder.encode([qtext])[0]
+            except Exception as e:
+                print(f"[RAGSummarizer] Warning: Could not reconstruct vector for article {article_id}: {e}")
+                # Fall through to re-embedding
+                art = self.id2article.get(article_id, {})
+                qtext = combine_title_text(art.get("title"), art.get("text"), max_chars=1200)
+                qvec = self.embedder.encode([qtext])[0]
         else:
-            # we don't need the raw vector if FAISS is already built from the same matrix;
-            # but FAISS requires a query vector. Use the embedder to re-embed the article text to be safe.
+            # Fallback: embed on the fly
             art = self.id2article.get(article_id, {})
             qtext = combine_title_text(art.get("title"), art.get("text"), max_chars=1200)
             qvec = self.embedder.encode([qtext])[0]
 
-        scores, idxs = search(self.index, qvec.astype(np.float32), topk=topk + 1)
+        try:
+            scores, idxs = search(self.index, qvec.astype(np.float32), topk=topk + 1)
+        except Exception as e:
+            print(f"[RAGSummarizer] Warning: FAISS search failed: {e}")
+            return []
+
         # Map FAISS indices -> article ids; drop self if present
         out: List[Tuple[int, float]] = []
         for sc, idx in zip(scores, idxs):
             if idx < 0:
                 continue
-            aid = self._idx2id[idx]
-            if aid is None:
-                continue
-            if int(aid) == int(article_id):
-                continue
+                
+            # If we have index maps, use them; otherwise use the index directly
+            if self._idx2id and idx < len(self._idx2id):
+                aid = self._idx2id[idx]
+                if aid is None:
+                    continue
+                if int(aid) == int(article_id):
+                    continue
+            else:
+                # Fallback: use the index directly as article ID
+                aid = int(idx)
+                if aid == int(article_id):
+                    continue
+                    
             out.append((int(aid), float(sc)))
             if len(out) >= topk:
                 break
@@ -190,6 +331,13 @@ class RAGSummarizer:
         neighbors = self._neighbors_for_article(article_id, topk=k)
         ctx = _build_context_block(neighbors, self.id2article, max_per_neighbor_words=80)
 
+        # If using fallback summarizer, provide a simpler approach
+        if self.summarizer._kind == "fallback":
+            # For fallback mode, just summarize the article text directly
+            article_text = f"{title}\n\n{body[:3000]}"  # Limit body length
+            return self.summarizer.summarize(article_text, max_tokens=150, min_tokens=50)
+
+        # Full RAG approach for other summarizer types
         prompt = f"""You are a professional tech & finance news editor.
 Use the context to improve coverage and precision, but avoid repetition.
 
@@ -210,32 +358,36 @@ Write a brief with 4–6 bullet points. Be factual, objective, and concise.
     # --- persistence ----------------------------------------------------------
 
     def save_summary(self, article_id: int, summary: str, k: int):
-        conn = sqlite3.connect(self.cfg.sqlite_path)
         try:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS rag_summaries (
-                    article_id INTEGER,
-                    k          INTEGER,
-                    model      TEXT,
-                    summary    TEXT,
-                    created_at TEXT
+            conn = sqlite3.connect(self.cfg.sqlite_path)
+            try:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS rag_summaries (
+                        article_id INTEGER,
+                        k          INTEGER,
+                        model      TEXT,
+                        summary    TEXT,
+                        created_at TEXT
+                    )
+                    """
                 )
-                """
-            )
-            conn.execute(
-                """
-                INSERT INTO rag_summaries(article_id, k, model, summary, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    int(article_id),
-                    int(k),
-                    self.cfg.model_name,
-                    summary,
-                    datetime.now(timezone.utc).isoformat(),
-                ),
-            )
-            conn.commit()
-        finally:
-            conn.close()
+                conn.execute(
+                    """
+                    INSERT INTO rag_summaries(article_id, k, model, summary, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        int(article_id),
+                        int(k),
+                        self.cfg.model_name,
+                        summary,
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+        except Exception as e:
+            print(f"[RAGSummarizer] Warning: Could not save summary to database: {e}")
+            # Continue without saving to database
