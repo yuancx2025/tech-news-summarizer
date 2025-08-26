@@ -228,7 +228,15 @@ class RAGSummarizer:
     def __init__(self, cfg: RAGConfig, id2article: Dict[int, dict]):
         self.cfg = cfg
         self.index = read_index(cfg.faiss_path)
-        self.embedder = Embedder(EmbedderConfig(model_name=cfg.embed_model, normalize=True, batch_size=64))
+        self.embedder = Embedder(
+            EmbedderConfig(model_name=cfg.embed_model, normalize=True, batch_size=64)
+        )
+        index_dim = getattr(self.index, "d", None)
+        if index_dim is not None and index_dim != self.embedder.dim:
+            raise ValueError(
+                f"FAISS index dimension {index_dim} does not match embedder dimension {self.embedder.dim}"
+                f" (expected {index_dim}, got {self.embedder.dim})"
+            )
         self.summarizer = _SummarizerWrapper(cfg.model_name)
         self.id2article = id2article  # article_id -> dict (title, text, source, published_at, ...)
         # build idx<->id maps from sqlite

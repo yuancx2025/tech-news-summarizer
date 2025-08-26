@@ -47,7 +47,16 @@ def main():
     ap.add_argument("--id-field", default="id")
     args = ap.parse_args()
 
-    items = read_jsonl(Path(args.input_jsonl), limit=args.n)
+    # Validate required input artifacts exist before proceeding
+    input_path = Path(args.input_jsonl)
+    db_path = Path(args.db)
+    faiss_path = Path(args.faiss)
+    for p, desc in ((input_path, "input_jsonl"), (db_path, "db"), (faiss_path, "faiss")):
+        if not p.exists():
+            raise FileNotFoundError(f"{desc} not found: {p}")
+
+    items = read_jsonl(input_path, limit=args.n)
+    
     assert items, "No items loaded"
 
     # Build id->article dict for RAG
@@ -79,35 +88,57 @@ def main():
     preds_v, preds_r, refs_src = [], [], []
     lat_v, lat_r = Timer(), Timer()
 
+    print(f"[eval] Processing {len(items)} articles...")
+    
     with pairs_path.open("w", encoding="utf-8") as wf:
-        for it in items:
-            aid = int(it.get(args.id_field))
-            src_text = (it.get("text") or "")
-            title = (it.get("title") or "")
-            ref = f"{title}\n{src_text}"
-            refs_src.append(ref)
+        for i, it in enumerate(items):
+            if i % 10 == 0:
+                print(f"[eval] Progress: {i}/{len(items)} articles processed")
+                
+            try:
+                aid = int(it.get(args.id_field))
+                src_text = (it.get("text") or "")
+                title = (it.get("title") or "")
+                ref = f"{title}\n{src_text}"
+                refs_src.append(ref)
 
-            # Vanilla
-            lat_v.tic()
-            v = vanilla(ref[:5000])  # light truncate to keep latency reasonable
-            lat_v.toc()
+                # Vanilla
+                lat_v.tic()
+                try:
+                    v = vanilla(ref[:5000])  # light truncate to keep latency reasonable
+                except Exception as e:
+                    print(f"[eval] Warning: Vanilla summarization failed for article {aid}: {e}")
+                    v = f"[ERROR: {str(e)[:100]}]"
+                lat_v.toc()
 
-            # RAG
-            lat_r.tic()
-            r = rag.summarize_article(aid, k=args.k)
-            lat_r.toc()
+                # RAG
+                lat_r.tic()
+                try:
+                    r = rag.summarize_article(aid, k=args.k)
+                except Exception as e:
+                    print(f"[eval] Warning: RAG summarization failed for article {aid}: {e}")
+                    r = f"[ERROR: {str(e)[:100]}]"
+                lat_r.toc()
 
-            preds_v.append(v)
-            preds_r.append(r)
+                preds_v.append(v)
+                preds_r.append(r)
 
-            wf.write(json.dumps({
-                "article_id": aid,
-                "title": title,
-                "source": it.get("source"),
-                "published_at": it.get("published_at"),
-                "vanilla": v,
-                "rag": r
-            }, ensure_ascii=False) + "\n")
+                wf.write(json.dumps({
+                    "article_id": aid,
+                    "title": title,
+                    "source": it.get("source"),
+                    "published_at": it.get("published_at"),
+                    "vanilla": v,
+                    "rag": r
+                }, ensure_ascii=False) + "\n")
+                
+            except Exception as e:
+                print(f"[eval] Error processing article {i}: {e}")
+                # Add placeholder entries to maintain alignment
+                preds_v.append(f"[ERROR: {str(e)[:100]}]")
+                preds_r.append(f"[ERROR: {str(e)[:100]}]")
+                refs_src.append("")
+                continue
 
     # Metrics (ROUGE against source text as a proxy for recall/coverage)
     rouge_v = rouge_batch(preds_v, refs_src)
@@ -120,10 +151,23 @@ def main():
     with metrics_csv.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["metric", "vanilla", "rag"])
-        for m in ("rouge1", "rouge2", "rougeLsum"):
-            w.writerow([f"{m}_p", f"{rouge_v[m]['p']:.4f}", f"{rouge_r[m]['p']:.4f}"])
-            w.writerow([f"{m}_r", f"{rouge_v[m]['r']:.4f}", f"{rouge_r[m]['r']:.4f}"])
-            w.writerow([f"{m}_f", f"{rouge_v[m]['f']:.4f}", f"{rouge_r[m]['f']:.4f}"])
+        
+        # Handle both ROUGE and fallback metrics
+        if "rouge1" in rouge_v and "rouge1" in rouge_r:
+            # Standard ROUGE metrics
+            for m in ("rouge1", "rouge2", "rougeLsum"):
+                if m in rouge_v and m in rouge_r:
+                    w.writerow([f"{m}_p", f"{rouge_v[m]['p']:.4f}", f"{rouge_r[m]['p']:.4f}"])
+                    w.writerow([f"{m}_r", f"{rouge_v[m]['r']:.4f}", f"{rouge_r[m]['r']:.4f}"])
+                    w.writerow([f"{m}_f", f"{rouge_v[m]['f']:.4f}", f"{rouge_r[m]['f']:.4f}"])
+        elif "overlap" in rouge_v and "overlap" in rouge_r:
+            # Fallback overlap metrics
+            w.writerow(["overlap_p", f"{rouge_v['overlap']['p']:.4f}", f"{rouge_r['overlap']['p']:.4f}"])
+            w.writerow(["overlap_r", f"{rouge_v['overlap']['r']:.4f}", f"{rouge_r['overlap']['r']:.4f}"])
+            w.writerow(["overlap_f", f"{rouge_v['overlap']['f']:.4f}", f"{rouge_r['overlap']['f']:.4f}"])
+            if "note" in rouge_v:
+                w.writerow(["note", rouge_v["note"], ""])
+        
         w.writerow(["len_words_avg", f"{len_v['words_avg']:.1f}", f"{len_r['words_avg']:.1f}"])
         w.writerow(["len_words_p90", f"{len_v['words_p90']:.1f}", f"{len_r['words_p90']:.1f}"])
         w.writerow(["compression_ratio", f"{comp_v:.4f}", f"{comp_r:.4f}"])

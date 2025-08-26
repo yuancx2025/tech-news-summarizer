@@ -24,7 +24,12 @@ def read_jsonl(path: Path, limit: int | None = None) -> List[dict]:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Run RAG summarization over a subset of articles")
+    ap = argparse.ArgumentParser(
+        description=(
+            "Run RAG summarization over a subset of articles. "
+            "FAISS index dimension must match the embedder's output dimension."
+        )
+    )
     ap.add_argument("--in", dest="input_jsonl", required=True, help="Processed JSONL (same one used for embeddings)")
     ap.add_argument("--faiss", default="data/processed/news.faiss", help="FAISS index path")
     ap.add_argument("--db", default="data/processed/news.sqlite", help="SQLite path with article_embeddings")
