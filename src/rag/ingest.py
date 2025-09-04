@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from dateutil import parser as dateparser
 from tqdm import tqdm
 
-from langchain.schema import Document
+from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 
