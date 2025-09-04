@@ -12,6 +12,9 @@ build/
 venv/
 env/
 
+# openai api key
+.env
+
 # --- Jupyter notebook checkpoints ---
 .ipynb_checkpoints/
 
