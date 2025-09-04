@@ -1,0 +1,23 @@
+# Embeddings
+embedding_model: text-embedding-3-small  # or text-embedding-3-large
+
+# Chroma persistence
+chroma_dir: data/vdb/chroma
+
+# Chunking
+chunk_size: 900          # 700–1000 chars is ideal for news
+chunk_overlap: 120       # ~10–15%
+min_chars: 380           # skip tiny bodies
+separators: ["\n\n", "\n", ". ", "? ", "! ", " ", ""]
+
+# Ingestion batching
+batch_limit: 1500        # number of chunks per persist
+
+# Retrieval defaults (Step 2)
+retrieval:
+  k_final: 8
+  fetch_k: 60
+  lambda_mult: 0.6
+  language: en
+  days_back_start: 60
+  days_back_max: 365
