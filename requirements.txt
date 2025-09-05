@@ -49,3 +49,8 @@ langchain-text-splitters
 langchain-openai
 chromadb
 orjson
+
+
+streamlit
+fastapi
+uvicorn
