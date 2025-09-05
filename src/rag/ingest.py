@@ -214,8 +214,29 @@ def ingest_jsonl_to_chroma(
     )
 
 def _flush_add(vs: Chroma, docs: List[Document]) -> None:
-    ids = [d.metadata["doc_id"] for d in docs]
-    vs.add_documents(documents=docs, ids=ids)
+    # Convert complex metadata to ChromaDB-compatible format
+    processed_docs = []
+    for doc in docs:
+        processed_metadata = {}
+        for key, value in doc.metadata.items():
+            if isinstance(value, list):
+                # Convert lists to comma-separated strings
+                processed_metadata[key] = ",".join(str(item) for item in value)
+            elif isinstance(value, dict):
+                # Convert dicts to JSON strings
+                import json
+                processed_metadata[key] = json.dumps(value)
+            else:
+                processed_metadata[key] = value
+        
+        processed_doc = Document(
+            page_content=doc.page_content,
+            metadata=processed_metadata
+        )
+        processed_docs.append(processed_doc)
+    
+    ids = [d.metadata["doc_id"] for d in processed_docs]
+    vs.add_documents(documents=processed_docs, ids=ids)
     vs.persist()
 
 

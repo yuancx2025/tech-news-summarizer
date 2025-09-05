@@ -1,8 +1,14 @@
 # scripts/index_chroma.py
 import argparse, yaml
 from src.rag.ingest import ingest_jsonl_to_chroma
+import os
+from dotenv import load_dotenv
 
 def main():
+    load_dotenv()
+    if not os.getenv("OPENAI_API_KEY"):
+        raise ValueError("OPENAI_API_KEY environment variable is required. Please set it in .env file or environment.")
+    
     ap = argparse.ArgumentParser("Index cleaned news into Chroma")
     ap.add_argument("--in", dest="input_path", required=True, help="data/processed/articles_clean.jsonl")
     ap.add_argument("--cfg", dest="cfg_path", default="config/rag.yml")
