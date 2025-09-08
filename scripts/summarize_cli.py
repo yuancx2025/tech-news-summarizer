@@ -3,11 +3,16 @@ import argparse, yaml, os, sys
 from typing import List
 from src.rag.tool import RAGTool
 from src.rag.schemas import SummarizeRequest
+from dotenv import load_dotenv
 
 def _csv_list(s: str) -> List[str] | None:
     return [x.strip() for x in s.split(",") if x.strip()] if s else None
 
 def main():
+    load_dotenv()
+    if not os.getenv("OPENAI_API_KEY"):
+        raise ValueError("OPENAI_API_KEY environment variable is required. Please set it in .env file or environment.")
+    
     ap = argparse.ArgumentParser("Summarize (topic or article) via RAG")
     ap.add_argument("--cfg", default="config/rag.yml")
     ap.add_argument("--mode", choices=["topic","article"], default="topic")
@@ -21,7 +26,19 @@ def main():
 
     if not os.path.exists(args.cfg):
         print(f"[ERR] config not found: {args.cfg}", file=sys.stderr); sys.exit(2)
-    cfg = yaml.safe_load(open(args.cfg, "r", encoding="utf-8"))
+    cfg = yaml.safe_load(open(args.cfg, "r", encoding="utf-8")) or {}
+
+    # Provide safe defaults if keys are missing to avoid NoneType errors
+    cfg.setdefault("embedding_model", "text-embedding-3-small")
+    cfg.setdefault("chroma_dir", "data/vdb/chroma")
+    cfg.setdefault("retrieval", {
+        "k_final": 8,
+        "fetch_k": 60,
+        "lambda_mult": 0.6,
+        "language": "en",
+        "days_back_start": 60,
+        "days_back_max": 365,
+    })
 
     # optional k override
     if args.k is not None:

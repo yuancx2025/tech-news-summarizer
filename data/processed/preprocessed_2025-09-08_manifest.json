@@ -1,0 +1,35 @@
+{
+  "input_sqlite": "data/processed/news.sqlite",
+  "table": "articles",
+  "filters": {
+    "date_from": null,
+    "date_to": null,
+    "sources": null,
+    "min_chars": 300
+  },
+  "outputs": {
+    "clean_csv": "data/processed/articles_clean.csv",
+    "clean_jsonl": "data/processed/articles_clean.jsonl",
+    "clean_sqlite": null,
+    "pre_jsonl": "data/processed/preprocessed_2025-09-08.jsonl",
+    "chunks_out": "data/chunks/chunks_2025-09-08.jsonl"
+  },
+  "created_at": "2025-09-08T16:41:48.381007Z",
+  "git_commit": "d10ca3f11696a4efe0da7558e09b75b3ac799995",
+  "rows_clean": 1,
+  "rows_pre_kept": 1,
+  "pre_dropped_short": 0,
+  "tokenizer": "facebook/bart-large-cnn",
+  "truncate_to_tokens": 1000,
+  "sentencer": "nltk",
+  "chunks_written": 2,
+  "token_stats": {
+    "counted": 1,
+    "mean": 1138.0,
+    "p50": 1138.0,
+    "p90": 1138.0,
+    "p95": 1138.0,
+    "p99": 1138.0,
+    "over_1024_pct": 1.0
+  }
+}

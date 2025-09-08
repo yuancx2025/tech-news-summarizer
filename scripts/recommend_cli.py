@@ -3,11 +3,16 @@ import argparse, yaml, os, sys
 from typing import List
 from src.rag.tool import RAGTool
 from src.rag.schemas import RecommendRequest, UserProfile
+from dotenv import load_dotenv
 
 def _csv_list(s: str) -> List[str] | None:
     return [x.strip() for x in s.split(",") if x.strip()] if s else None
 
 def main():
+    load_dotenv()
+    if not os.getenv("OPENAI_API_KEY"):
+        raise ValueError("OPENAI_API_KEY environment variable is required. Please set it in .env file or environment.")
+    
     ap = argparse.ArgumentParser("Recommend articles with one-line reasons")
     ap.add_argument("--cfg", default="config/rag.yml")
     ap.add_argument("--tickers", default="", help="Comma-separated tickers (optional)")

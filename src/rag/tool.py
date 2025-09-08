@@ -19,6 +19,7 @@ from src.rag.ranking import (
 from src.rag.chains import (
     make_llm, map_summarize_per_doc, reduce_merge_bullets, generate_reason
 )
+from src.rag.ingest import _canonicalize_url
 
 # --------- RAGTool ----------
 class RAGTool:
@@ -46,10 +47,18 @@ class RAGTool:
             # group by article and keep top 1–2 chunks/article
             selected = self._group_and_select(docs, per_article=2, k_final=req.k)
 
+        # If nothing was selected/fetched, return empty result (avoid reduce step)
+        if not selected:
+            return SummarizeResponse(bullets=[])
+
         # Map → reduce
         map_bullets: List[str] = []
         for d in selected:
             map_bullets.extend(map_summarize_per_doc(self.llm_summarize, d))
+
+        # If map produced nothing, return empty result
+        if not map_bullets:
+            return SummarizeResponse(bullets=[])
 
         merged = reduce_merge_bullets(
             self.llm_summarize, map_bullets, max_bullets=self.cfg.get("summarize", {}).get("max_bullets", 6)
@@ -69,11 +78,13 @@ class RAGTool:
         if article_id:
             where["article_id"] = article_id
         elif url:
-            where["url_canonical"] = url
+            # Canonicalize to match how URLs are stored during ingestion
+            canon = _canonicalize_url(url)
+            where["url_canonical"] = canon
         else:
             return []
 
-        res = self.vs._collection.get(where=where, include=["documents", "metadatas", "ids"])  # type: ignore[attr-defined]
+        res = self.vs._collection.get(where=where, include=["documents", "metadatas"])  # type: ignore[attr-defined]
         docs: List[Document] = []
         for doc_id, content, meta in zip(res.get("ids", []), res.get("documents", []), res.get("metadatas", [])):
             # Ensure doc_id is present in metadata for ranking compatibility
