@@ -44,13 +44,48 @@ sources:
 ### 2. Run the pipeline (end-to-end)
 From the repo root: 
 
-
 ```
 # Scrape → Clean → Index into Chroma
 python -m data_pipeline.pipeline all \
   --feeds config/feeds.yml \
   --rag-cfg config/rag.yml
 ```
+This will generate:
+
+- Raw scraped data → data/raw/articles.jsonl
+- Cleaned & preprocessed data → data/processed/articles_clean.csv/jsonl, data/processed/preprocessed.jsonl
+- Vector database (Chroma) → data/vdb/chroma/
+
+### 3. Run Stages Individually (Optional)
+
+```
+# Scrape raw articles
+python -m data_pipeline.pipeline scrape \
+  --config config/feeds.yml \
+  --out-jsonl data/raw/articles.jsonl
+
+# Clean + preprocess
+python -m data_pipeline.pipeline clean \
+  --in-jsonl data/raw/articles.jsonl \
+  --out-csv data/processed/articles_clean.csv \
+  --out-jsonl data/processed/articles_clean.jsonl \
+  --out-pre-jsonl data/processed/preprocessed.jsonl \
+  --make-chunks
+
+# Index into Chroma
+python -m data_pipeline.pipeline index \
+  --input data/processed/articles_clean.jsonl \
+  --cfg config/rag.yml
+```
+
+### 4. Verify Outputs
+
+- Raw data: data/raw/
+- Cleaned data: data/processed/
+- Vector DB: data/vdb/chroma/
+
+
+
 
 
 ## 📌 Project Goals
