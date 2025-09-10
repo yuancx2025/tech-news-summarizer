@@ -1,6 +1,6 @@
 # LLM-Powered Tech News Summarizer 🚀📰
 
-This project builds a full-stack pipeline to scrape, clean, summarize, and visualize tech news using large language models like BART and T5.
+This project builds a full-stack pipeline to scrape, clean, summarize, and recommend tech/finance news using Retrieval-Augmented Generation (RAG).
 
 ## 🚀 Quick Start
 
@@ -23,122 +23,86 @@ This project builds a full-stack pipeline to scrape, clean, summarize, and visua
    pip install -r requirements.txt
    ```
 
-4. **Installation complete!** The TextRank summarizer now uses a custom sentence tokenizer that doesn't require additional downloads.
+## 📥 Rebuilding Scraped Data
 
-## 🧪 Running Evaluations
+This project does **not** ship full datasets or vector stores in the repo (to keep it lightweight and respect site content licenses).  
+Instead, you can reproduce everything locally with the provided data pipeline.
 
-After installation, you can evaluate different summarization models:
+### 1. Configure Sources
+Edit [`config/feeds.yml`](config/feeds.yml) to specify which news sites to scrape:
 
-### Basic Evaluation (Qualitative)
-```bash
-python -m model.evaluate \
-  --pre-jsonl data/processed/preprocessed_2025-08-19.jsonl \
-  --run-name qual_check \
-  --models lead3,textrank,distilbart,bart \
-  --limit 100
+```yaml
+sources:
+  - domain: https://techcrunch.com
+    limit: 20
+    language: en
+  - domain: https://www.theverge.com
+    limit: 10
+    language: en
 ```
 
-### Fast Evaluation (Skip HF Models)
-```bash
-python -m model.evaluate \
-  --pre-jsonl data/processed/preprocessed_2025-08-19.jsonl \
-  --run-name fast_check \
-  --models lead3,textrank \
-  --fast \
-  --limit 100
+### 2. Run the pipeline (end-to-end)
+From the repo root: 
+
+
+```
+# Scrape → Clean → Index into Chroma
+python -m data_pipeline.pipeline all \
+  --feeds config/feeds.yml \
+  --rag-cfg config/rag.yml
 ```
 
-### Evaluation with References
-```bash
-python -m model.evaluate \
-  --pre-jsonl data/processed/preprocessed_2025-08-19.jsonl \
-  --ref-field summary \
-  --run-name with_refs \
-  --models lead3,textrank,distilbart,bart \
-  --limit 100
-```
-
-### Available Models
-- **lead3**: Lead-3 sentences (baseline) - ⚡ Very fast
-- **textrank**: TextRank algorithm (custom sentence tokenizer) - ⚡ Fast
-- **distilbart**: DistilBART-CNN model - 🐌 Slow (first run downloads model)
-- **bart**: BART-Large-CNN model - 🐌 Slow (first run downloads model)
-
-**Note**: HF models (distilbart, bart) are slow on first run due to model downloading. Use `--fast` flag to skip them for quick evaluation.
-
-Results will be saved to `results/<run_name>/` directory.
 
 ## 📌 Project Goals
-- Scrape tech news from sources like TechCrunch, Wired, and The Verge
-- Summarize using pretrained LLMs (Hugging Face Transformers)
-- Analyze article trends and summary performance
+- Scrape news from sources like TechCrunch, Wired, and The Verge
+- Summarize and making recommendation with RAG
 - Deploy via Streamlit with interactive UI
 - Visualize insights using Tableau
 
 ## 🗂️ Project Structure
 ```text
 tech-news-summarizer/
-├── 📁 config/                    # Configuration files
-│   ├── feeds.yml                 # News source configurations
-│   └── feeds_finance.yml         # Finance-specific feeds
+├── app/                      # Frontend/UI
+│   └── ui_streamlit.py
 │
-├── 📁 data/                      # Data storage and processing
-│   ├── raw/                      # Raw scraped articles
-│   │   ├── articles.jsonl
-│   │   └── articles_2025-08-16.jsonl
-│   └── processed/                # Cleaned and processed data
-│       ├── articles_clean.csv
-│       ├── articles_clean.jsonl
-│       ├── preprocessed_2025-08-19.jsonl
-│       └── preprocessed_2025-08-19_manifest.json
-│
-├── 📁 model/                     # AI/ML model implementations
+├── data_pipeline/            # Data prep & indexing
 │   ├── __init__.py
-│   ├── evaluate.py               # Model evaluation framework
-│   ├── metrics.py                # Evaluation metrics (ROUGE, BLEU, etc.)
-│   ├── rag_summarizer.py         # RAG-based summarization system
-│   └── summarizers.py            # Multiple summarization models
+│   ├── scrape.py             # newspaper3k scraping
+│   ├── clean.py              # cleaning & normalization
+│   ├── embed.py              # embeddings + OpenAI API
+│   ├── index_chroma.py       # ingest into Chroma/FAISS
+│   └── pipeline.py           # orchestrate full pipeline
 │
-├── 📁 notebooks/                 # Jupyter notebooks for analysis
-│   ├── eda_articles.py          # Article data exploration
-│   ├── eda_preprocess.py        # Preprocessing analysis
-│   └── eda.ipynb                # Main exploratory analysis
-│
-├── 📁 scripts/                   # Automation and utility scripts
+├── src/                      # Core backend logic
 │   ├── __init__.py
-│   ├── bootstrap.py              # Project setup and initialization
-│   ├── build_embeddings.py       # Generate article embeddings
-│   ├── build_faiss_index.py      # Build FAISS vector search index
-│   ├── clean_export_preprocess.py # Data cleaning pipeline
-│   ├── eval_rag_vs_vanilla.py    # RAG vs. standard summarization comparison
-│   ├── rag_batch.py              # Batch RAG processing
-│   ├── run_full_scrape.sh        # Full scraping automation script
-│   └── scrape_newspaper.py       # News article scraper
+│   ├── rag/                  # Retrieval + RAG
+│   │   ├── __init__.py
+│   │   ├── retriever.py
+│   │   ├── ranker.py
+│   │   ├── rag_summarizer.py
+│   │   └── recommend.py
+│   ├── api/                  # API layer
+│   │   ├── __init__.py
+│   │   └── main.py           # FastAPI app
+│   └── schemas.py            # Pydantic models shared across RAG/API
 │
-├── 📁 src/                       # Core source code modules
-│   ├── __init__.py
-│   ├── cleaning.py               # Data cleaning and preprocessing
-│   ├── embeddings.py             # Text embedding generation
-│   ├── faiss_store.py            # FAISS vector database operations
-│   └── schema.py                 # Data schemas and validation
+├── config/                   # YAML configs
+│   ├── feeds.yml
+│   └── rag.yml
 │
-├── 📁 tests/                     # Comprehensive test suite
-│   ├── __init__.py
-│   ├── test_clean_export_preprocess.py
-│   ├── test_cleaning.py
-│   ├── test_embeddings.py
-│   ├── test_end_to_end_smoke.py
-│   ├── test_faiss_store.py
-│   ├── test_inference.py
-│   ├── test_metrics.py
-│   ├── test_rag.py
-│   └── test_schema.py
+├── data/                     # Local storage (gitignored)
+│   ├── raw/
+│   ├── processed/
+│   ├── chunks/
+│   └── vdb/
 │
-├── 📁 venv/                      # Python virtual environment
-├── requirements.txt               # Python dependencies
-├── setup.py                      # Package installation configuration
+├── tests/                    # Unit + E2E tests
+├── notebooks/                # EDA & experiments
+├── cli.py                    # optional: Typer CLI as single entrypoint
+├── requirements.txt
+├── README.md
 ├── LICENSE
-└── README.md
+└── .gitignore
 
 ```
 
@@ -148,7 +112,7 @@ tech-news-summarizer/
 |------|-----------|
 | ✅ Week 1 | Scraped and cleaned tech articles |
 | ✅ Week 2 | Built and evaluated LLM summarizer |
-| ✅ Week 3 | RAG-based improvement with FAISS |
+| ✅ Week 3 | RAG-based improvement with Chroma |
 | ✅ Week 4 | RAG-based recommendation |
 | ✅ Week 5 | Streamlit app deployment + demo |
 
