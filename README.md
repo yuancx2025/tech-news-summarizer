@@ -1,4 +1,4 @@
-# LLM-Powered Tech News Summarizer 🚀📰
+# RAG-Powered News Assistant 🚀📰
 
 This project builds a full-stack pipeline to scrape, clean, summarize, and recommend tech/finance news using Retrieval-Augmented Generation (RAG).
 
@@ -84,9 +84,19 @@ python -m data_pipeline.pipeline index \
 - Cleaned data: data/processed/
 - Vector DB: data/vdb/chroma/
 
+## 🚀 How to run FastAPI + Streamlit with Chroma:
 
+### 1. Start the FastAPI Backend
+```
+# open a terminal and run
+uvicorn src.api.api_main:app --host 0.0.0.0 --port 8000 --reload
+```
 
-
+### 2. Start the Streamlit Frontend
+```
+# Open a second terminal and run:
+streamlit run app/ui_streamlit.py --server.port 8501
+```
 
 ## 📌 Project Goals
 - Scrape news from sources like TechCrunch, Wired, and The Verge
