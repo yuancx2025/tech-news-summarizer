@@ -26,3 +26,45 @@ sources:
   - domain: https://venturebeat.com
     limit: 100
     language: en
+
+  - domain: https://www.reuters.com/finance
+    limit: 100
+    language: en
+
+  - domain: https://www.cnbc.com/finance/
+    limit: 100
+    language: en
+
+  - domain: https://finance.yahoo.com
+    limit: 100
+    language: en
+
+  - domain: https://www.marketwatch.com/latest-news
+    limit: 100
+    language: en
+
+  - domain: https://www.investing.com/news
+    limit: 100
+    language: en
+
+  - domain: https://www.nasdaq.com/news-and-insights
+    limit: 100
+    language: en
+
+  # Tech x finance crossover (often parseable)
+  - domain: https://www.theverge.com/money
+    limit: 100
+    language: en
+
+  - domain: https://www.ft.com/world/us
+    limit: 100
+    language: en
+
+  - domain: https://www.businessinsider.com/finance
+    limit: 100
+    language: en
+
+  - domain: https://www.fool.com/investing
+    limit: 100
+    language: en
+

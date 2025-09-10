@@ -1,8 +1,3 @@
-# app/ui_streamlit.py (enhanced)
-# -------------------------------------------------------------
-# Adds: (1) "How to use" page, (2) option pickers for tickers/sources/sections
-#       with server-provided catalog + free-form extras, (3) small UX polish.
-# -------------------------------------------------------------
 import os
 import json
 import requests

@@ -25,14 +25,6 @@ This project builds a full-stack pipeline to scrape, clean, summarize, and visua
 
 4. **Installation complete!** The TextRank summarizer now uses a custom sentence tokenizer that doesn't require additional downloads.
 
-### Alternative Installation with setup.py
-
-You can also install using the setup script which will automatically download NLTK data:
-
-```bash
-pip install -e .
-```
-
 ## 🧪 Running Evaluations
 
 After installation, you can evaluate different summarization models:
@@ -157,6 +149,6 @@ tech-news-summarizer/
 | ✅ Week 1 | Scraped and cleaned tech articles |
 | ✅ Week 2 | Built and evaluated LLM summarizer |
 | ✅ Week 3 | RAG-based improvement with FAISS |
-| 🔄 Week 4 | Tableau visualizations of trends |
-| ⏳ Week 5 | Streamlit app deployment + demo |
+| ✅ Week 4 | RAG-based recommendation |
+| ✅ Week 5 | Streamlit app deployment + demo |
 

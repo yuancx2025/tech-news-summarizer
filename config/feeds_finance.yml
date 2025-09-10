@@ -1,42 +1,42 @@
 sources:
   - domain: https://www.reuters.com/finance
-    limit: 40
+    limit: 100
     language: en
 
   - domain: https://www.cnbc.com/finance/
-    limit: 40
+    limit: 100
     language: en
 
   - domain: https://finance.yahoo.com
-    limit: 40
+    limit: 100
     language: en
 
   - domain: https://www.marketwatch.com/latest-news
-    limit: 40
+    limit: 100
     language: en
 
   - domain: https://www.investing.com/news
-    limit: 40
+    limit: 100
     language: en
 
   - domain: https://www.nasdaq.com/news-and-insights
-    limit: 40
+    limit: 100
     language: en
 
   # Tech x finance crossover (often parseable)
   - domain: https://www.theverge.com/money
-    limit: 40
+    limit: 100
     language: en
 
   - domain: https://www.ft.com/world/us
-    limit: 40
+    limit: 100
     language: en
 
   - domain: https://www.businessinsider.com/finance
-    limit: 40
+    limit: 100
     language: en
 
   - domain: https://www.fool.com/investing
-    limit: 40
+    limit: 100
     language: en
 
