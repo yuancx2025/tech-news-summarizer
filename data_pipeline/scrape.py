@@ -29,6 +29,7 @@ import os
 import pathlib
 import sys
 import time
+from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
 import hashlib, re
@@ -56,7 +57,7 @@ def to_iso_or_none(dt) -> Optional[str]:
 
 # ---------- URL normalization ----------
 def normalize_url(u: str) -> str:
-    """Strip tracking params (?utm_*, fbclid, gclid, ref, etc.) and fragments."""
+    """Strip tracking params (?utm_*, fbclid, gclid, mc_*, ref, etc.) and fragments."""
     try:
         scheme, netloc, path, query, _ = urlsplit(u)
         keep = []
@@ -126,7 +127,6 @@ def article_to_row(a: Article, url: str) -> Dict:
         "summary": getattr(a, "summary", None),
         "keywords": keywords,
         "content_hash": content_hash(a.text),
-        "sentiment": "pending",
         "fetched_at": utc_now_iso(),
     }
 
@@ -191,7 +191,7 @@ def write_jsonl(path: str, rows: Iterable[Dict]) -> None:
             print(json.dumps(r, ensure_ascii=False))
         return
 
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a", encoding="utf-8") as f:
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")

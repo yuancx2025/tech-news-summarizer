@@ -2,16 +2,15 @@
 from __future__ import annotations
 
 import argparse
-import subprocess
-from pathlib import Path
-from typing import Optional, List, Dict
 import os
+from pathlib import Path
+from typing import Optional, List
 
 from dotenv import load_dotenv
 
-# import scraper helpers to avoid an extra process
-from data_pipeline.scrape import load_config, crawl_domain, write_jsonl, MIN_CHARS, validate_row  # validate_row imported from src.cleaning via scrape
-# index function is already a proper library function
+# Import pipeline functions directly (no shell-out)
+from data_pipeline.scrape import load_config, crawl_domain, write_jsonl
+from data_pipeline.clean import load_jsonl as load_clean_jsonl, normalize_record, dedupe_exact, write_jsonl as write_clean_jsonl, write_csv
 from src.rag.ingest import ingest_jsonl_to_chroma
 
 def run_scrape(config_path: str, out_jsonl: str, per_request_sleep: float = 0.4) -> None:
@@ -38,64 +37,64 @@ def run_scrape(config_path: str, out_jsonl: str, per_request_sleep: float = 0.4)
     write_jsonl(out_jsonl, all_rows)
     print(f"[SCRAPE] Wrote JSONL → {out_jsonl}")
 
-def run_clean(in_jsonl: str, out_csv: str, out_jsonl: str, out_pre_jsonl: str,
-              tokenizer_model: str = "facebook/bart-large-cnn",
-              truncate_to: int = 1000,
-              min_chars: int = 300,
-              min_words: int = 80,
-              sentencer: str = "nltk",
-              make_chunks: bool = False,
-              chunk_tokens: int = 800,
-              chunk_overlap: int = 120,
-              chunks_out: str = "data/chunks/chunks_{date}.jsonl",
-              date_from: Optional[str] = None,
-              date_to: Optional[str] = None,
-              sources: Optional[List[str]] = None) -> None:
+def run_clean(in_jsonl: str, out_jsonl: str, out_csv: Optional[str] = None, 
+              drop_non_en: bool = False) -> None:
     """
-    Delegate to data_pipeline.clean CLI to avoid duplicating logic.
+    Clean raw articles: normalize, dedupe, and export to JSONL/CSV.
+    Simplified signature using defaults from config.
     """
-    Path(out_csv).parent.mkdir(parents=True, exist_ok=True)
     Path(out_jsonl).parent.mkdir(parents=True, exist_ok=True)
-    Path(out_pre_jsonl).parent.mkdir(parents=True, exist_ok=True)
-    if make_chunks:
-        Path(chunks_out.replace("{date}", "1970-01-01")).parent.mkdir(parents=True, exist_ok=True)
+    if out_csv:
+        Path(out_csv).parent.mkdir(parents=True, exist_ok=True)
 
-    cmd = [
-        "python", "-m", "data_pipeline.clean",
-        "--in-jsonl", in_jsonl,
-        "--out-csv", out_csv,
-        "--out-jsonl", out_jsonl,
-        "--out-pre-jsonl", out_pre_jsonl,
-        "--tokenizer-model", tokenizer_model,
-        "--truncate-to", str(truncate_to),
-        "--min-chars", str(min_chars),
-        "--min-words", str(min_words),
-        "--sentencer", sentencer,
-    ]
-    if date_from:
-        cmd += ["--date-from", date_from]
-    if date_to:
-        cmd += ["--date-to", date_to]
-    if sources:
-        cmd += ["--sources"] + sources
-    if make_chunks:
-        cmd += ["--make-chunks", "--chunk-tokens", str(chunk_tokens), "--chunk-overlap", str(chunk_overlap), "--chunks-out", chunks_out]
-
-    print(f"[CLEAN] Running: {' '.join(cmd)}")
-    subprocess.run(cmd, check=True)
-    print("[CLEAN] Done.")
+    print(f"[CLEAN] Processing {in_jsonl}")
+    
+    # Streaming pipeline
+    def normalize_stream():
+        for rec in load_clean_jsonl(in_jsonl):
+            norm = normalize_record(rec)
+            if not norm:
+                continue
+            if drop_non_en and norm.get("language") != "en":
+                continue
+            yield norm
+    
+    # Dedupe and write JSONL
+    cleaned = dedupe_exact(normalize_stream())
+    n = write_clean_jsonl(out_jsonl, cleaned)
+    print(f"[CLEAN] Wrote {n} rows → {out_jsonl}")
+    
+    # Optional CSV export
+    if out_csv:
+        cleaned_for_csv = dedupe_exact(normalize_stream())
+        fields = ["id", "url", "source", "title", "published_at", "language"]
+        n_csv = write_csv(out_csv, cleaned_for_csv, fields)
+        print(f"[CLEAN] Wrote {n_csv} rows → {out_csv}")
 
 def run_index(in_clean_jsonl: str, rag_cfg_path: str) -> None:
+    """Index cleaned JSONL into Chroma using config file."""
     import yaml
-    cfg = yaml.safe_load(Path(rag_cfg_path).read_text(encoding="utf-8")) or {}
+    
+    cfg_path = Path(rag_cfg_path)
+    if not cfg_path.exists():
+        raise FileNotFoundError(f"Config not found: {rag_cfg_path}")
+    
+    cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+    
+    # Validate required keys
     for key in ["chroma_dir", "embedding_model", "chunk_size", "chunk_overlap", "min_chars", "batch_limit"]:
         if key not in cfg:
             raise KeyError(f"[INDEX] Missing '{key}' in {rag_cfg_path}")
-    Path(cfg["chroma_dir"]).mkdir(parents=True, exist_ok=True)
+    
+    chroma_dir = Path(cfg["chroma_dir"])
+    chroma_dir.mkdir(parents=True, exist_ok=True)
+    
+    print(f"[INDEX] Config: {rag_cfg_path}")
+    print(f"[INDEX] Chroma dir: {chroma_dir}")
 
     ingest_jsonl_to_chroma(
         input_path=in_clean_jsonl,
-        chroma_dir=cfg["chroma_dir"],
+        chroma_dir=str(chroma_dir),
         embedding_model=cfg["embedding_model"],
         chunk_size=int(cfg["chunk_size"]),
         chunk_overlap=int(cfg["chunk_overlap"]),
@@ -119,35 +118,22 @@ def main():
 
     # clean
     cp = sub.add_parser("clean")
-    cp.add_argument("--in-jsonl", required=True)
-    cp.add_argument("--out-csv", default="data/processed/articles_clean.csv")
-    cp.add_argument("--out-jsonl", default="data/processed/articles_clean.jsonl")
-    cp.add_argument("--out-pre-jsonl", default="data/processed/preprocessed.jsonl")
-    cp.add_argument("--tokenizer-model", default="facebook/bart-large-cnn")
-    cp.add_argument("--truncate-to", type=int, default=1000)
-    cp.add_argument("--min-chars", type=int, default=300)
-    cp.add_argument("--min-words", type=int, default=80)
-    cp.add_argument("--sentencer", choices=["nltk", "spacy"], default="nltk")
-    cp.add_argument("--make-chunks", action="store_true")
-    cp.add_argument("--chunk-tokens", type=int, default=800)
-    cp.add_argument("--chunk-overlap", type=int, default=120)
-    cp.add_argument("--chunks-out", default="data/chunks/chunks_{date}.jsonl")
-    cp.add_argument("--date-from")
-    cp.add_argument("--date-to")
-    cp.add_argument("--sources", nargs="*")
+    cp.add_argument("--in-jsonl", required=True, help="Raw JSONL input")
+    cp.add_argument("--out-jsonl", required=True, help="Cleaned JSONL output")
+    cp.add_argument("--out-csv", default=None, help="Optional CSV export")
+    cp.add_argument("--drop-non-en", action="store_true", help="Drop non-English articles")
 
     # index
     ip = sub.add_parser("index")
     ip.add_argument("--input", required=True, help="Clean JSONL (e.g., data/processed/articles_clean.jsonl)")
-    ip.add_argument("--cfg", default="config/rag.yml")
+    ip.add_argument("--cfg", default="config/rag.yml", help="RAG config file")
 
     # all
     ap_all = sub.add_parser("all")
-    ap_all.add_argument("--feeds", default="config/feeds.yml")
+    ap_all.add_argument("--feeds", default="config/feeds.yml", help="Feed sources config")
     ap_all.add_argument("--raw-jsonl", default="data/raw/articles.jsonl")
-    ap_all.add_argument("--clean-csv", default="data/processed/articles_clean.csv")
     ap_all.add_argument("--clean-jsonl", default="data/processed/articles_clean.jsonl")
-    ap_all.add_argument("--pre-jsonl", default="data/processed/preprocessed.jsonl")
+    ap_all.add_argument("--clean-csv", default="data/processed/articles_clean.csv")
     ap_all.add_argument("--rag-cfg", default="config/rag.yml")
 
     args = ap.parse_args()
@@ -158,21 +144,9 @@ def main():
     elif args.cmd == "clean":
         run_clean(
             in_jsonl=args.in_jsonl,
-            out_csv=args.out_csv,
             out_jsonl=args.out_jsonl,
-            out_pre_jsonl=args.out_pre_jsonl,
-            tokenizer_model=args.tokenizer_model,
-            truncate_to=args.truncate_to,
-            min_chars=args.min_chars,
-            min_words=args.min_words,
-            sentencer=args.sentencer,
-            make_chunks=args.make_chunks,
-            chunk_tokens=args.chunk_tokens,
-            chunk_overlap=args.chunk_overlap,
-            chunks_out=args.chunks_out,
-            date_from=args.date_from,
-            date_to=args.date_to,
-            sources=args.sources,
+            out_csv=args.out_csv,
+            drop_non_en=args.drop_non_en,
         )
 
     elif args.cmd == "index":
@@ -183,13 +157,11 @@ def main():
     elif args.cmd == "all":
         # 1) scrape
         run_scrape(args.feeds, args.raw_jsonl)
-        # 2) clean (defaults)
+        # 2) clean
         run_clean(
             in_jsonl=args.raw_jsonl,
-            out_csv=args.clean_csv,
             out_jsonl=args.clean_jsonl,
-            out_pre_jsonl=args.pre_jsonl,
-            make_chunks=True,
+            out_csv=args.clean_csv,
         )
         # 3) index
         if not os.getenv("OPENAI_API_KEY"):

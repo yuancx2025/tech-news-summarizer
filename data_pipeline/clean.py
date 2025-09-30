@@ -15,18 +15,21 @@ Key improvements implemented here:
 from __future__ import annotations
 
 import argparse, json, csv, re, html as ihtml, hashlib, sys
+from pathlib import Path
 from typing import Optional, Dict, Any, Iterable, List, Tuple
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 from datetime import datetime, timezone
+from tqdm import tqdm
 
 # --------------- Utilities ---------------
 def canonical_url(u: Optional[str]) -> Optional[str]:
+    """Normalize URL by stripping tracking params and fragments."""
     if not u:
         return u
     try:
         p = urlsplit(u)
         qs = [(k, v) for k, v in parse_qsl(p.query, keep_blank_values=True)
-              if not k.lower().startswith(("utm_", "fbclid", "gclid"))]
+              if not k.lower().startswith(("utm_", "fbclid", "gclid", "mc_cid", "mc_eid", "ref"))]
         return urlunsplit((p.scheme, p.netloc, p.path, urlencode(qs), ""))
     except Exception:
         return u
@@ -176,6 +179,7 @@ def normalize_record(rec: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 def load_jsonl(path: str) -> Iterable[Dict[str, Any]]:
+    """Stream JSONL records one at a time to avoid loading entire file into memory."""
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -187,7 +191,9 @@ def load_jsonl(path: str) -> Iterable[Dict[str, Any]]:
                 continue
 
 def write_jsonl(path: str, rows: Iterable[Dict[str, Any]]) -> int:
+    """Write JSONL incrementally, return count of rows written."""
     n = 0
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         for rec in rows:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
@@ -195,7 +201,9 @@ def write_jsonl(path: str, rows: Iterable[Dict[str, Any]]) -> int:
     return n
 
 def write_csv(path: str, rows: Iterable[Dict[str, Any]], fieldnames: List[str]) -> int:
+    """Write CSV incrementally, return count of rows written."""
     n = 0
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()
@@ -204,48 +212,57 @@ def write_csv(path: str, rows: Iterable[Dict[str, Any]], fieldnames: List[str]) 
             n += 1
     return n
 
-def dedupe_exact(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def dedupe_exact(rows: Iterable[Dict[str, Any]]) -> Iterable[Dict[str, Any]]:
+    """Streaming deduplication by content_hash."""
     seen = set()
-    out = []
     for r in rows:
         h = r.get("content_hash")
         if not h:
-            out.append(r)
+            yield r
             continue
         if h in seen:
             continue
         seen.add(h)
-        out.append(r)
-    return out
+        yield r
 
 def main():
     ap = argparse.ArgumentParser("Clean raw articles JSONL for RAG")
-    ap.add_argument("--in-jsonl", required=True)
-    ap.add_argument("--out-jsonl", required=True)
-    ap.add_argument("--out-csv", default=None)
-    ap.add_argument("--drop-non-en", action="store_true", help="Force-drop non-English based on heuristic")
+    ap.add_argument("--in-jsonl", required=True, help="Input raw JSONL file")
+    ap.add_argument("--out-jsonl", required=True, help="Output cleaned JSONL file")
+    ap.add_argument("--out-csv", default=None, help="Optional CSV export")
+    ap.add_argument("--drop-non-en", action="store_true", help="Force-drop non-English")
     args = ap.parse_args()
 
-    raw_rows = list(load_jsonl(args.in_jsonl))
-    cleaned: List[Dict[str, Any]] = []
-    for rec in raw_rows:
-        norm = normalize_record(rec)
-        if not norm:
-            continue
-        if args.drop_non_en and norm.get("language") != "en":
-            continue
-        cleaned.append(norm)
-
-    # exact dedupe on content
-    cleaned = dedupe_exact(cleaned)
-
-    # write outputs
+    print(f"[clean] Reading from {args.in_jsonl}")
+    
+    # Streaming pipeline: load → normalize → filter → dedupe
+    raw_rows = load_jsonl(args.in_jsonl)
+    
+    # Count raw for progress
+    raw_count = sum(1 for _ in load_jsonl(args.in_jsonl))
+    print(f"[clean] Processing {raw_count} raw records...")
+    
+    def normalize_stream():
+        for rec in tqdm(load_jsonl(args.in_jsonl), total=raw_count, desc="Normalizing"):
+            norm = normalize_record(rec)
+            if not norm:
+                continue
+            if args.drop_non_en and norm.get("language") != "en":
+                continue
+            yield norm
+    
+    # Dedupe and write
+    cleaned = dedupe_exact(normalize_stream())
     n_jsonl = write_jsonl(args.out_jsonl, cleaned)
-    print(f"[clean] wrote {n_jsonl} rows -> {args.out_jsonl}")
+    print(f"[clean] Wrote {n_jsonl} rows → {args.out_jsonl}")
+    
     if args.out_csv:
-        fields = ["id","url","source","title","published_at","language"]
-        n_csv = write_csv(args.out_csv, cleaned, fieldnames=fields)
-        print(f"[clean] wrote CSV with {n_csv} rows -> {args.out_csv}")
+        # Re-stream for CSV
+        cleaned_for_csv = dedupe_exact(normalize_stream())
+        fields = ["id", "url", "source", "title", "published_at", "language"]
+        n_csv = write_csv(args.out_csv, cleaned_for_csv, fieldnames=fields)
+        print(f"[clean] Wrote {n_csv} rows → {args.out_csv}")
 
 if __name__ == "__main__":
+    main()
     main()
