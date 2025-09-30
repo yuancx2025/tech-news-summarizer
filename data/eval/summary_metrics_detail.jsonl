@@ -1,0 +1,1 @@
+{"length_tokens": 45, "length_deviation": 75, "compression_ratio": 53.333333333333336, "redundancy_rate": 0.0, "rouge1_f": 0.4166666666666667, "rouge2_f": 0.1142857142857143, "rougeL_f": 0.3888888888888889, "query_id": "Q001", "system_variant": "rag_baseline", "bertscore_f1": 0.9434917569160461}
