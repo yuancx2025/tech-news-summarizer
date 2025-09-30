@@ -31,6 +31,7 @@ def summarize(req: SummarizeRequest):
     try:
         return rag.summarize(req)
     except Exception as e:
+        print(f"[ERROR] /summarize failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/recommend", response_model=RecommendResponse)
@@ -38,4 +39,5 @@ def recommend(req: RecommendRequest):
     try:
         return rag.recommend(req)
     except Exception as e:
+        print(f"[ERROR] /recommend failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

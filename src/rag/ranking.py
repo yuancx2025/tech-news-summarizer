@@ -1,4 +1,5 @@
 # src/rag/ranking.py
+"""Scoring, ranking, and deduplication utilities for retrieved documents."""
 from __future__ import annotations
 from typing import List, Any, Dict, Iterable, Tuple
 from datetime import datetime, timezone

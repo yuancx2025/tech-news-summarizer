@@ -1,4 +1,5 @@
 # src/embeddings.py
+"""OpenAI embeddings wrapper for RAG pipeline."""
 from langchain_openai import OpenAIEmbeddings
 
 def get_openai_embeddings(model_name: str = "text-embedding-3-small") -> OpenAIEmbeddings:

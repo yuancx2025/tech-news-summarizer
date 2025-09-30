@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 
 from src.embeddings import get_openai_embeddings
 
@@ -237,7 +237,7 @@ def _flush_add(vs: Chroma, docs: List[Document]) -> None:
     
     ids = [d.metadata["doc_id"] for d in processed_docs]
     vs.add_documents(documents=processed_docs, ids=ids)
-    vs.persist()
+    # Note: langchain-chroma auto-persists to disk, no manual .persist() needed
 
 
 if __name__ == "__main__":

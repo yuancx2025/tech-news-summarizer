@@ -1,4 +1,5 @@
 # src/rag/chains.py
+"""LangChain prompt templates and map-reduce summarization chains."""
 from __future__ import annotations
 from typing import List, Dict, Any, Tuple
 from langchain_openai import ChatOpenAI

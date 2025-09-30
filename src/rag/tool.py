@@ -1,10 +1,11 @@
 # src/rag/tool.py
+"""High-level RAGTool class orchestrating retrieval, summarization, and recommendations."""
 from __future__ import annotations
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 import yaml
 from collections import defaultdict
 
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain.schema import Document
 
 from src.embeddings import get_openai_embeddings
