@@ -1,7 +1,8 @@
 # src/rag/chains.py
 """LangChain prompt templates and map-reduce summarization chains."""
 from __future__ import annotations
-from typing import List, Dict, Any, Tuple, Literal
+from typing import List, Dict, Any, Tuple, Literal, Optional
+import os
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
@@ -12,14 +13,22 @@ def make_llm(
     model: str = "gemini-2.5-flash",
     temperature: float = 0.0,
     max_tokens: int = 300,
-    provider: Literal["openai", "gemini"] = "gemini"
+    provider: Literal["openai", "gemini"] = "gemini",
+    api_key: Optional[str] = None,
 ):
     """Create LLM instance. Defaults to Gemini 2.5 Flash for summarization."""
     if provider == "gemini":
+        key = api_key or os.getenv("GOOGLE_API_KEY")
+        if not key:
+            raise RuntimeError(
+                "GOOGLE_API_KEY is required for Gemini LLM usage. Set the environment "
+                "variable or pass api_key explicitly."
+            )
         return ChatGoogleGenerativeAI(
             model=model,
             temperature=temperature,
-            max_output_tokens=max_tokens
+            max_output_tokens=max_tokens,
+            google_api_key=key,
         )
     else:
         return ChatOpenAI(model=model, temperature=temperature, max_tokens=max_tokens)

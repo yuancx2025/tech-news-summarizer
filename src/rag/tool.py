@@ -1,6 +1,8 @@
 # src/rag/tool.py
 """High-level RAGTool class orchestrating retrieval, summarization, and recommendations."""
 from __future__ import annotations
+
+import os
 from typing import List, Dict, Any, Optional
 import yaml
 from collections import defaultdict
@@ -26,10 +28,32 @@ from src.rag.ingest import _canonicalize_url
 class RAGTool:
     def __init__(self, cfg: Dict[str, Any]):
         self.cfg = cfg
-        self.emb = get_embeddings(provider="gemini", model_name=cfg.get("embedding_model", "models/text-embedding-004"))
+        self.gemini_api_key = cfg.get("gemini_api_key") or os.getenv("GOOGLE_API_KEY")
+        if not self.gemini_api_key:
+            raise RuntimeError(
+                "GOOGLE_API_KEY is required for Gemini provider. Set the environment variable "
+                "or add 'gemini_api_key' to config/rag.yml."
+            )
+        self.emb = get_embeddings(
+            provider="gemini",
+            model_name=cfg.get("embedding_model", "models/text-embedding-004"),
+            api_key=self.gemini_api_key,
+        )
         self.vs = Chroma(persist_directory=cfg["chroma_dir"], embedding_function=self.emb)
-        self.llm_summarize = make_llm(model=cfg.get("llm_model", "gemini-2.5-flash"), temperature=0.0, max_tokens=300, provider="gemini")
-        self.llm_reason = make_llm(model=cfg.get("llm_model", "gemini-2.5-flash"), temperature=0.0, max_tokens=250, provider="gemini")
+        self.llm_summarize = make_llm(
+            model=cfg.get("llm_model", "gemini-2.5-flash"),
+            temperature=0.0,
+            max_tokens=300,
+            provider="gemini",
+            api_key=self.gemini_api_key,
+        )
+        self.llm_reason = make_llm(
+            model=cfg.get("llm_model", "gemini-2.5-flash"),
+            temperature=0.0,
+            max_tokens=250,
+            provider="gemini",
+            api_key=self.gemini_api_key,
+        )
 
     # ---- Summarization ----
     def summarize(self, req: SummarizeRequest) -> SummarizeResponse:

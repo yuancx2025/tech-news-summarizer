@@ -129,6 +129,7 @@ with tab_help:
         - **Topic query**: Natural language topic (e.g., *NVDA earnings and AI demand outlook*).
         - **Article URL**: Full URL if using `article` mode.
         - **Tickers / Sources**: Filter retrieval by companies (tickers) or publishers.
+        - **Days back**: Only consider articles from the last N days.
         - **k**: Final number of chunks (snippets) fed into the summarizer after re-ranking.
 
         **Recommend**
@@ -177,21 +178,18 @@ with tab1:
     )
     extra_sources = fc2.text_input("Extra sources (comma-separated)", key="sum_extra_sources")
 
-    sel_sections = fc3.multiselect(
-        "Sections (suggested)", options=CATALOG.get("sections", []),
-        help="Type to search and select.", key="sum_sections"
+    # Days back filter
+    days_back = fc3.slider(
+        "Days back",
+        min_value=7,
+        max_value=365,
+        value=60,
+        step=1,
+        key="sum_days_back",
     )
-    extra_sections = fc3.text_input("Extra sections (comma-separated)", key="sum_extra_sections")
-
 
     # Core knobs
     k = st.slider("k (final #chunks)", min_value=3, max_value=10, value=8, step=1)
-
-    with st.expander("Advanced retriever settings", expanded=False):
-        adv1, adv2, adv3 = st.columns(3)
-        fetch_k = adv1.number_input("fetch_k (pre-filter)", min_value=10, max_value=200, value=60, step=5)
-        search_type = adv2.selectbox("search_type", options=["mmr", "similarity"], index=0)
-        lambda_mult = adv3.slider("lambda_mult (MMR)", min_value=0.0, max_value=1.0, value=0.6, step=0.05)
 
     run_sum = st.button("Run Summarization", type="primary")
 
@@ -199,36 +197,32 @@ with tab1:
         try:
             tickers = _merge_unique([t.upper() for t in sel_tickers], _csv_to_list(extra_tickers, upper=True)) or None
             sources = _merge_unique(sel_sources, _csv_to_list(extra_sources)) or None
-            sections = _merge_unique(sel_sections, _csv_to_list(extra_sections)) or None
 
             payload = {
                 "mode": mode,
                 "query": query if mode == "topic" else None,
                 "article_url": article_url if mode == "article" else None,
                 "k": int(k),
+                "days_back": int(days_back),
                 "tickers": tickers,
                 "sources": sources,
-                "sections": sections,
-                # Optional advanced knobs (server can ignore if unsupported)
-                "retriever": {
-                    "fetch_k": int(fetch_k),
-                    "search_type": search_type,
-                    "lambda_mult": float(lambda_mult),
-                },
             }
 
             res = _post("/summarize", payload)
             bullets = res.get("bullets", [])
 
             if not bullets:
-                st.info("No bullets returned.")
+                st.info("No bullets returned. Try adjusting filters or query.")
             else:
                 st.markdown("### Summary")
                 for b in bullets:
                     url = b.get("url")
                     text = b.get("text", "")
+                    citation = b.get("citation", "")
                     if url:
                         st.markdown(f"- {text}  \n  🔗 {url}")
+                    elif citation:
+                        st.markdown(f"- {text} {citation}")
                     else:
                         st.markdown(f"- {text}")
         except requests.HTTPError as e:
@@ -254,7 +248,14 @@ with tab2:
     extra_sec = c3.text_input("Extra sections (comma-separated)", key="rec_extra_sections")
 
 
-    days = st.slider("Days back", min_value=7, max_value=365, value=60, step=1)
+    days = st.slider(
+        "Days back",
+        min_value=7,
+        max_value=365,
+        value=60,
+        step=1,
+        key="rec_days_back",
+    )
     interest = st.text_input("Interest text (optional)", placeholder="AI hardware, enterprise cloud deals")
     krec = st.slider("Top-N", min_value=3, max_value=10, value=5, step=1)
 
