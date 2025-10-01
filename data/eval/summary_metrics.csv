@@ -1,2 +1,0 @@
-system_variant,n_queries,rouge1_f_mean,rouge2_f_mean,rougeL_f_mean,bertscore_f1_mean,length_deviation_mean,compression_ratio_mean,redundancy_rate_mean
-rag_baseline,1,0.4166666666666667,0.1142857142857143,0.3888888888888889,0.9434917569160461,75.0,53.333333333333336,0.0

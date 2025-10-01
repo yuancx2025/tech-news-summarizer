@@ -1,5 +1,9 @@
-# Embeddings
-embedding_model: text-embedding-3-small  # or text-embedding-3-large
+# Embeddings (Gemini)
+embedding_model: models/text-embedding-004  # Gemini embedding model
+
+# LLM for summarization & reasoning
+llm_model: gemini-2.5-flash  # Gemini 2.5 Flash
+llm_provider: gemini  # "gemini" or "openai"
 
 # Chroma persistence
 chroma_dir: data/vdb/chroma

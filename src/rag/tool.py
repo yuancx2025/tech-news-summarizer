@@ -8,7 +8,7 @@ from collections import defaultdict
 from langchain_chroma import Chroma
 from langchain.schema import Document
 
-from src.embeddings import get_openai_embeddings
+from src.embeddings import get_embeddings
 from src.rag.schemas import (
     SummarizeRequest, SummarizeResponse, SummaryBullet,
     RecommendRequest, RecommendResponse, RecommendItem
@@ -26,10 +26,10 @@ from src.rag.ingest import _canonicalize_url
 class RAGTool:
     def __init__(self, cfg: Dict[str, Any]):
         self.cfg = cfg
-        self.emb = get_openai_embeddings(cfg["embedding_model"])
+        self.emb = get_embeddings(provider="gemini", model_name=cfg.get("embedding_model", "models/text-embedding-004"))
         self.vs = Chroma(persist_directory=cfg["chroma_dir"], embedding_function=self.emb)
-        self.llm_summarize = make_llm(model=cfg.get("llm_model", "gpt-4o-mini"), temperature=0.0, max_tokens=300)
-        self.llm_reason = make_llm(model=cfg.get("llm_model", "gpt-4o-mini"), temperature=0.0, max_tokens=180)
+        self.llm_summarize = make_llm(model=cfg.get("llm_model", "gemini-2.5-flash"), temperature=0.0, max_tokens=300, provider="gemini")
+        self.llm_reason = make_llm(model=cfg.get("llm_model", "gemini-2.5-flash"), temperature=0.0, max_tokens=250, provider="gemini")
 
     # ---- Summarization ----
     def summarize(self, req: SummarizeRequest) -> SummarizeResponse:

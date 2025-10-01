@@ -48,7 +48,7 @@ def score_and_rank_candidates(
     query: str,
     docs: List[Any],
     vs,
-    emb,  # OpenAIEmbeddings
+    emb, 
     sim_weight: float = 0.65,
     recency_weight: float = 0.35,
     recency_half_life_days: float = 7.0,

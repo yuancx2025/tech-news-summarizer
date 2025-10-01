@@ -12,7 +12,7 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 
-from src.embeddings import get_openai_embeddings
+from src.embeddings import get_embeddings
 
 
 # ---------- helpers ----------
@@ -143,21 +143,20 @@ def make_chunks_from_article(
 
 
 # ---------- ingestion: idempotent & batched into Chroma ----------
-def ingest_jsonl_to_chroma(
-    *,
+def ingest_articles_to_chroma(
     input_path: str,
     chroma_dir: str,
-    embedding_model: str = "text-embedding-3-small",
-    chunk_size: int = 900,
-    chunk_overlap: int = 120,
-    min_chars: int = 380,
+    embedding_model: str = "models/text-embedding-004",
+    chunk_size: int = 1000,
+    chunk_overlap: int = 100,
+    min_chars: int = 300,
     separators: Optional[List[str]] = None,
     batch_limit: int = 1500,
-) -> None:
+):
     in_fp = Path(input_path)
     assert in_fp.exists(), f"Input not found: {in_fp}"
 
-    emb = get_openai_embeddings(embedding_model)
+    emb = get_embeddings(provider="gemini", model_name=embedding_model)
     vs = Chroma(persist_directory=chroma_dir, embedding_function=emb)
 
     seen_hashes = set()  # dedup within this run

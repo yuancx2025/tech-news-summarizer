@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any, Tuple
 
 from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
+from src.embeddings import get_embeddings
 
 # -------- utilities --------
 def _utc_floor(days_back: int) -> str:
@@ -47,7 +47,7 @@ def _dedup_by_article(docs: List[Any], k_final: int) -> List[Any]:
 def retrieve_chroma_mmr(
     *,
     chroma_dir: str,
-    embedding_model: str = "text-embedding-3-small",
+    embedding_model: str = "models/text-embedding-004",
     query: str,
     k_final: int = 8,
     fetch_k: int = 60,
@@ -66,7 +66,7 @@ def retrieve_chroma_mmr(
     - light dedup by article_id
     Returns a list of LC Documents (chunks) with metadata attached.
     """
-    emb = OpenAIEmbeddings(model=embedding_model)
+    emb = get_embeddings(provider="gemini", model_name=embedding_model)
     vs = Chroma(persist_directory=chroma_dir, embedding_function=emb)
 
     days = days_back_start

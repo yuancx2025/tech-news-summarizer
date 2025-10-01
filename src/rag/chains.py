@@ -1,14 +1,28 @@
 # src/rag/chains.py
 """LangChain prompt templates and map-reduce summarization chains."""
 from __future__ import annotations
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Literal
 from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 import re
 
 # ---------- LLM factory ----------
-def make_llm(model: str = "gpt-4o-mini", temperature: float = 0.0, max_tokens: int = 300):
-    return ChatOpenAI(model=model, temperature=temperature, max_tokens=max_tokens)
+def make_llm(
+    model: str = "gemini-2.5-flash",
+    temperature: float = 0.0,
+    max_tokens: int = 300,
+    provider: Literal["openai", "gemini"] = "gemini"
+):
+    """Create LLM instance. Defaults to Gemini 2.5 Flash for summarization."""
+    if provider == "gemini":
+        return ChatGoogleGenerativeAI(
+            model=model,
+            temperature=temperature,
+            max_output_tokens=max_tokens
+        )
+    else:
+        return ChatOpenAI(model=model, temperature=temperature, max_tokens=max_tokens)
 
 # ---------- Prompts ----------
 MAP_PROMPT = ChatPromptTemplate.from_messages([
