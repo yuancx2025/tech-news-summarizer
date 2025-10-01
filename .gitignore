@@ -19,7 +19,7 @@ env/
 .ipynb_checkpoints/
 
 # --- Data ---
-# data/raw/
+data
 # data/processed/
 # data/interim/
 # *.sqlite

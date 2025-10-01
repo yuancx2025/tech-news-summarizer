@@ -6,6 +6,9 @@ import google.generativeai as genai
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+from dotenv import load_dotenv
+load_dotenv()
+
 random.seed(0); np.random.seed(0)
 
 def load_jsonl(p):
@@ -109,7 +112,7 @@ def to_model():
         raise RuntimeError("GOOGLE_API_KEY is not set.")
     genai.configure(api_key=api_key)
     # Use a fast, capable default; change if you prefer Pro
-    return genai.GenerativeModel("gemini-1.5-flash")
+    return genai.GenerativeModel("gemini-2.5-flash")
 
 def call_gemini(model, prompt, evidence=None, max_output_tokens=1024, temperature=0.2):
     if evidence:

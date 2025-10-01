@@ -21,7 +21,7 @@ def main():
     args = ap.parse_args()
 
     outdir = pathlib.Path(args.outdir); outdir.mkdir(parents=True, exist_ok=True)
-    ds = load_dataset("ccdv/cnn_dailymail", "3.0.0")[args.split]
+    ds = load_dataset("cnn_dailymail", "3.0.0", split=args.split, trust_remote_code=True)
     ds = ds.select(range(min(args.n, len(ds))))
 
     refs_fp = (outdir / "references.jsonl").open("w", encoding="utf-8")
