@@ -1,5 +1,9 @@
-from fastapi import FastAPI, HTTPException
-import yaml, os
+from datetime import date
+from pathlib import Path
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException, Query
+import yaml, os, json
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.rag.tool import RAGTool
@@ -21,6 +25,18 @@ app.add_middleware(
 )
 
 rag = RAGTool(cfg)
+
+ANALYTICS_DIR = Path(os.getenv("ANALYTICS_DIR", "data/analytics"))
+
+
+def _load_metrics(filename: str) -> dict:
+    path = ANALYTICS_DIR / filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Analytics payload '{filename}' not found")
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to parse analytics file: {exc}") from exc
 
 @app.get("/healthz")
 def healthz():
@@ -70,6 +86,70 @@ def get_catalog():
         print(f"[WARN] /meta/catalog failed: {e}")
         # Return empty catalog on error
         return {"tickers": [], "sources": [], "sections": []}
+
+
+@app.get("/analytics/overview")
+def analytics_overview(
+    start: Optional[date] = Query(None, description="Filter metrics from this date (inclusive)"),
+    end: Optional[date] = Query(None, description="Filter metrics up to this date (inclusive)"),
+    tickers: Optional[str] = Query(None, description="Comma separated tickers to filter mentions"),
+):
+    payload = _load_metrics("overview.json")
+    sector_rows = payload.get("sector_sentiment", [])
+    mention_rows = payload.get("ticker_mentions", [])
+
+    def _in_range(row: dict) -> bool:
+        date_str = row.get("date")
+        if not date_str:
+            return True
+        try:
+            row_date = date.fromisoformat(str(date_str))
+        except ValueError:
+            return True
+        if start and row_date < start:
+            return False
+        if end and row_date > end:
+            return False
+        return True
+
+    filtered_sector = [row for row in sector_rows if _in_range(row)]
+
+    ticker_set = None
+    if tickers:
+        ticker_set = {t.strip().upper() for t in tickers.split(",") if t.strip()}
+        mention_rows = [row for row in mention_rows if row.get("ticker") in ticker_set]
+
+    return {
+        "generated_at": payload.get("generated_at"),
+        "sector_sentiment": filtered_sector,
+        "ticker_mentions": mention_rows,
+        "filters": {
+            "start": start.isoformat() if start else None,
+            "end": end.isoformat() if end else None,
+            "tickers": sorted(ticker_set) if ticker_set else None,
+        },
+    }
+
+
+@app.get("/analytics/cooccurrence")
+def analytics_cooccurrence(
+    tickers: Optional[str] = Query(None, description="Comma separated tickers to filter pairs"),
+    limit: int = Query(200, ge=1, le=5000, description="Maximum number of pairs to return"),
+):
+    payload = _load_metrics("ticker_cooccurrence.json")
+    rows = payload if isinstance(payload, list) else payload.get("pairs", [])
+    ticker_set = None
+    if tickers:
+        ticker_set = {t.strip().upper() for t in tickers.split(",") if t.strip()}
+        rows = [
+            row
+            for row in rows
+            if row.get("source") in ticker_set or row.get("target") in ticker_set
+        ]
+    return {
+        "pairs": rows[:limit],
+        "filters": {"tickers": sorted(ticker_set) if ticker_set else None, "limit": limit},
+    }
 
 @app.post("/summarize", response_model=SummarizeResponse)
 def summarize(req: SummarizeRequest):
