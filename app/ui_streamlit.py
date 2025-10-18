@@ -1,8 +1,6 @@
 import os
-import json
 import requests
 import traceback
-from datetime import date
 import streamlit as st
 
 # -----------------------------
@@ -102,7 +100,7 @@ if refresh_catalog:
 CATALOG = load_catalog(API)
 
 # Tabs
-tab_help, tab1, tab2 = st.tabs(["❓ How to use", "📝 Summarize", "⭐ Recommend"])
+tab_help, tab1, tab2, tab3 = st.tabs(["❓ How to use", "📝 Summarize", "⭐ Recommend", "🤖 Ask"])
 
 # -----------------------------
 # ❓ How to use
@@ -302,3 +300,140 @@ with tab2:
         except Exception:
             st.error("An unexpected error occurred. See details below.")
             st.exception(traceback.format_exc())
+
+# -----------------------------
+# 🤖 Ask
+# -----------------------------
+with tab3:
+    st.subheader("Ask a question about the news")
+    question = st.text_area(
+        "Question",
+        placeholder="What has Apple announced about generative AI this quarter?",
+        help="Ask about trends, companies, or themes. The assistant will cite supporting events.",
+    )
+
+    col_t1, col_t2 = st.columns(2)
+    temporal_hint = col_t1.text_input(
+        "Natural-language time hint",
+        placeholder="since July",
+        help="Optional phrase like 'since July' or 'last quarter'.",
+    )
+    days_back = col_t2.slider(
+        "Fallback days back",
+        min_value=7,
+        max_value=365,
+        value=90,
+        step=1,
+        help="Used when no explicit dates are detected.",
+    )
+
+    col_d1, col_d2 = st.columns(2)
+    start_override = col_d1.text_input(
+        "Start date override (YYYY-MM-DD)",
+        help="Optional explicit start date.",
+    )
+    end_override = col_d2.text_input(
+        "End date override (YYYY-MM-DD)",
+        help="Optional explicit end date.",
+    )
+
+    st.markdown("**Filters**")
+    fc1, fc2 = st.columns(2)
+    ask_tickers = fc1.multiselect(
+        "Tickers",
+        options=CATALOG.get("tickers", []),
+        help="Filter by tickers (optional).",
+    )
+    ask_extra_tickers = fc1.text_input("Extra tickers (comma-separated)")
+    ask_sources = fc2.multiselect(
+        "Sources",
+        options=CATALOG.get("sources", []),
+        help="Filter by publisher (optional).",
+    )
+    ask_extra_sources = fc2.text_input("Extra sources (comma-separated)")
+
+    col_opt1, col_opt2 = st.columns(2)
+    max_events = col_opt1.slider(
+        "Max timeline events",
+        min_value=3,
+        max_value=12,
+        value=6,
+        step=1,
+    )
+    context_k = col_opt2.slider(
+        "Context chunks",
+        min_value=6,
+        max_value=40,
+        value=18,
+        step=2,
+        help="Number of retrieved chunks to analyze before selecting events.",
+    )
+
+    run_qa = st.button("Ask the agent", type="primary")
+
+    if run_qa:
+        if not question.strip():
+            st.warning("Please enter a question.")
+        else:
+            try:
+                tickers = _merge_unique([t.upper() for t in ask_tickers], _csv_to_list(ask_extra_tickers, upper=True)) or None
+                sources = _merge_unique(ask_sources, _csv_to_list(ask_extra_sources)) or None
+
+                temporal_filter = {}
+                if temporal_hint:
+                    temporal_filter["natural_language"] = temporal_hint
+                if start_override:
+                    temporal_filter["start_date"] = start_override
+                if end_override:
+                    temporal_filter["end_date"] = end_override
+                temporal_filter["days_back"] = int(days_back)
+                if not any(k in temporal_filter for k in ("natural_language", "start_date", "end_date")):
+                    temporal_filter = {"days_back": int(days_back)}
+
+                payload = {
+                    "question": question,
+                    "days_back": int(days_back),
+                    "tickers": tickers,
+                    "sources": sources,
+                    "max_events": int(max_events),
+                    "context_k": int(context_k),
+                    "temporal_filter": temporal_filter,
+                }
+
+                res = _post("/qa", payload, timeout=120)
+                answer = res.get("answer", "")
+                timeline = res.get("timeline", [])
+                citations = res.get("citations", [])
+
+                if answer:
+                    st.markdown("### Answer")
+                    st.markdown(answer)
+                else:
+                    st.info("No narrative answer returned.")
+
+                if citations:
+                    st.markdown("**Citations:** " + ", ".join(citations))
+
+                if timeline:
+                    st.markdown("### Timeline")
+                    for item in timeline:
+                        date = item.get("date") or "Unknown"
+                        summary = item.get("summary", "")
+                        citation = item.get("citation") or ""
+                        source = item.get("source") or ""
+                        url = item.get("url")
+                        parts = [f"**{date}**", summary]
+                        if citation:
+                            parts.append(citation)
+                        if source:
+                            parts.append(f"_{source}_")
+                        st.markdown(" - " + " — ".join([p for p in parts if p]))
+                        if url:
+                            st.markdown(f"   🔗 {url}")
+                else:
+                    st.info("No supporting events were found.")
+            except requests.HTTPError as e:
+                st.error(f"API error: {getattr(e, 'response', None) and e.response.text}")
+            except Exception:
+                st.error("An unexpected error occurred. See details below.")
+                st.exception(traceback.format_exc())

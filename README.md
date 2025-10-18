@@ -23,6 +23,13 @@ This project builds a full-stack pipeline to scrape, clean, summarize, and recom
    pip install -r requirements.txt
    ```
 
+4. **Set environment variables:**
+   ```bash
+   export GOOGLE_API_KEY=<your-gemini-api-key>
+   export RAG_CONFIG_PATH=config/rag.yml  # optional override
+   export FRONTEND_ORIGIN=http://localhost:8501  # optional CORS override
+   ```
+
 ## 📥 Rebuilding Scraped Data
 
 This project does **not** ship full datasets or vector stores in the repo (to keep it lightweight and respect site content licenses).  
@@ -97,6 +104,57 @@ uvicorn src.api.api_main:app --host 0.0.0.0 --port 8000 --reload
 # Open a second terminal and run:
 streamlit run app/ui_streamlit.py --server.port 8501
 ```
+
+## 🤖 Question Answering Agent
+
+The stack now supports a retrieval-augmented Q&A assistant that builds a dated event timeline before composing an answer.
+
+- **Endpoint:** `POST /qa`
+- **Request body:**
+  ```json
+  {
+    "question": "What has Apple shared about AI since July?",
+    "temporal_filter": {
+      "natural_language": "since July",
+      "start_date": "2024-07-01",
+      "end_date": null,
+      "days_back": 120
+    },
+    "tickers": ["AAPL"],
+    "sources": ["Bloomberg"],
+    "max_events": 6,
+    "context_k": 18
+  }
+  ```
+- **Response body:**
+  ```json
+  {
+    "answer": "Apple highlighted... (Bloomberg, 2024-07-15)",
+    "timeline": [
+      {
+        "date": "2024-07-15",
+        "summary": "WWDC keynote unveiled on-device generative models",
+        "source": "Bloomberg",
+        "url": "https://...",
+        "citation": "(Bloomberg, 2024-07-15)"
+      }
+    ],
+    "citations": ["(Bloomberg, 2024-07-15)"]
+  }
+  ```
+
+### Natural-language time parsing
+
+`src/rag/time_utils.py` uses [`dateparser`](https://dateparser.readthedocs.io/) to interpret hints like “since July” or “this quarter”. When no phrase is detected, the service falls back to the provided `days_back` value. Explicit ISO start/end dates always win.
+
+### Streamlit “🤖 Ask” tab
+
+The UI exposes a dedicated tab for the Q&A workflow. Users can:
+
+- enter free-text questions,
+- set ticker/source filters,
+- provide optional natural-language or explicit date bounds,
+- adjust the number of supporting events returned.
 
 ## 📌 Project Goals
 - Scrape news from sources like TechCrunch, Wired, and The Verge

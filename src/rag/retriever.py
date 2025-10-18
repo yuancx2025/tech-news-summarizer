@@ -18,11 +18,15 @@ def build_where(
     language: str = "en",
     tickers: Optional[List[str]] = None,
     sources: Optional[List[str]] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
 ) -> Dict[str, Any]:
     where: Dict[str, Any] = {
-        "published_at": {"$gte": _utc_floor(days_back)},
+        "published_at": {"$gte": f"{start_date}T00:00:00Z" if start_date else _utc_floor(days_back)},
         "language": language,
     }
+    if end_date:
+        where["published_at"]["$lte"] = f"{end_date}T23:59:59Z"
     if tickers:
         where["tickers"] = {"$in": [t.upper() for t in tickers]}
     if sources:
@@ -57,6 +61,8 @@ def retrieve_chroma_mmr(
     language: str = "en",
     tickers: Optional[List[str]] = None,
     sources: Optional[List[str]] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
 ) -> List[Any]:
     """
     Retrieval with:
@@ -73,7 +79,14 @@ def retrieve_chroma_mmr(
     docs: List[Any] = []
 
     while days <= days_back_max:
-        where = build_where(days_back=days, language=language, tickers=tickers, sources=sources)
+        where = build_where(
+            days_back=days,
+            language=language,
+            tickers=tickers,
+            sources=sources,
+            start_date=start_date,
+            end_date=end_date,
+        )
         retriever = vs.as_retriever(
             search_type="mmr",
             search_kwargs={
@@ -85,7 +98,12 @@ def retrieve_chroma_mmr(
         )
         docs = retriever.invoke(query)
 
-        if len(docs) >= k_final or days >= days_back_max:
+        if (
+            len(docs) >= k_final
+            or days >= days_back_max
+            or start_date is not None
+            or end_date is not None
+        ):
             break
 
         # Auto-expand window (double, capped at max)
@@ -96,18 +114,31 @@ def retrieve_chroma_mmr(
 
 
 # -------- convenience wrapper using rag.yml --------
-def retrieve_with_config(query: str, cfg: Dict[str, Any], *, tickers=None, sources=None) -> List[Any]:
+def retrieve_with_config(
+    query: str,
+    cfg: Dict[str, Any],
+    *,
+    tickers=None,
+    sources=None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    days_back_start: Optional[int] = None,
+    k_final: Optional[int] = None,
+    fetch_k: Optional[int] = None,
+) -> List[Any]:
     r = cfg["retrieval"]
     return retrieve_chroma_mmr(
         chroma_dir=cfg["chroma_dir"],
         embedding_model=cfg["embedding_model"],
         query=query,
-        k_final=r["k_final"],
-        fetch_k=r["fetch_k"],
+        k_final=k_final or r["k_final"],
+        fetch_k=fetch_k or r["fetch_k"],
         lambda_mult=r["lambda_mult"],
-        days_back_start=r["days_back_start"],
+        days_back_start=days_back_start or r["days_back_start"],
         days_back_max=r["days_back_max"],
         language=r.get("language", "en"),
         tickers=tickers,
         sources=sources,
+        start_date=start_date,
+        end_date=end_date,
     )
