@@ -42,19 +42,21 @@ sources:
 ```
 
 ### 2. Run the pipeline (end-to-end)
-From the repo root: 
+From the repo root:
 
 ```
 # Scrape → Clean → Index into Chroma
 python -m data_pipeline.pipeline all \
   --feeds config/feeds.yml \
-  --rag-cfg config/rag.yml
+  --rag-cfg config/rag.yml \
+  --ticker-cfg config/tickers.yml
 ```
 This will generate:
 
 - Raw scraped data → data/raw/articles.jsonl
 - Cleaned & preprocessed data → data/processed/articles_clean.csv/jsonl, data/processed/preprocessed.jsonl
 - Vector database (Chroma) → data/vdb/chroma/
+- Analytics artifacts (JSON/Parquet) → data/analytics/
 
 ### 3. Run Stages Individually (Optional)
 
@@ -76,6 +78,12 @@ python -m data_pipeline.pipeline clean \
 python -m data_pipeline.pipeline index \
   --input data/processed/articles_clean.jsonl \
   --cfg config/rag.yml
+
+# Analytics metrics + dashboards
+python -m data_pipeline.pipeline analytics \
+  --rag-cfg config/rag.yml \
+  --ticker-cfg config/tickers.yml \
+  --out-dir data/analytics
 ```
 
 ### 4. Verify Outputs
@@ -83,6 +91,33 @@ python -m data_pipeline.pipeline index \
 - Raw data: data/raw/
 - Cleaned data: data/processed/
 - Vector DB: data/vdb/chroma/
+- Analytics cache & metrics: data/analytics/
+
+## 📈 Analytics & Dashboard
+
+1. **Regenerate metrics** (after indexing or when new articles arrive):
+   ```bash
+   python -m data_pipeline.pipeline analytics \
+     --rag-cfg config/rag.yml \
+     --ticker-cfg config/tickers.yml \
+     --out-dir data/analytics
+   ```
+   This will
+   - Extract article metadata from Chroma with ticker/sector enrichment.
+   - Score sentiment per article (cached at `data/analytics/sentiment.parquet`).
+   - Persist sector sentiment, ticker mentions, and co-occurrence matrices as JSON + Parquet under `data/analytics/`.
+
+2. **Expose analytics via FastAPI**: set `ANALYTICS_DIR` if you keep metrics outside the default.
+   ```bash
+   export ANALYTICS_DIR=/path/to/data/analytics
+   uvicorn src.api.api_main:app --host 0.0.0.0 --port 8000 --reload
+   ```
+
+3. **Launch the Streamlit analytics dashboard**:
+   ```bash
+   streamlit run app/dashboard_streamlit.py --server.port 8502
+   ```
+   Use the sidebar controls to adjust date/ticker filters. The charts call the FastAPI analytics endpoints (`/analytics/overview`, `/analytics/cooccurrence`).
 
 ## 🚀 How to run FastAPI + Streamlit with Chroma:
 

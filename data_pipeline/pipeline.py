@@ -10,8 +10,20 @@ from dotenv import load_dotenv
 
 # Import pipeline functions directly (no shell-out)
 from data_pipeline.scrape import load_config, crawl_domain, write_jsonl
-from data_pipeline.clean import load_jsonl as load_clean_jsonl, normalize_record, dedupe_exact, write_jsonl as write_clean_jsonl, write_csv
+from data_pipeline.clean import (
+    load_jsonl as load_clean_jsonl,
+    normalize_record,
+    dedupe_exact,
+    write_jsonl as write_clean_jsonl,
+    write_csv,
+)
 from src.rag.ingest import ingest_jsonl_to_chroma
+from src.analytics import (
+    AnalyticsMetricsBuilder,
+    SentimentAnalyzer,
+    collect_articles,
+    load_ticker_lookup,
+)
 
 
 def _ensure_gemini_credentials() -> str:
@@ -111,6 +123,34 @@ def run_index(in_clean_jsonl: str, rag_cfg_path: str) -> None:
     )
     print("[INDEX] Indexed into Chroma.")
 
+
+def run_analytics(
+    rag_cfg_path: str,
+    ticker_cfg_path: str,
+    *,
+    output_dir: str = "data/analytics",
+) -> None:
+    """Build analytics artifacts (articles, sentiment, metrics)."""
+
+    ticker_lookup = load_ticker_lookup(ticker_cfg_path)
+    print(f"[ANALYTICS] Loaded {len(ticker_lookup)} tickers from {ticker_cfg_path}")
+
+    articles = collect_articles(rag_cfg_path, ticker_cfg_path)
+    if articles.empty:
+        print("[ANALYTICS] No articles found in vector store; skipping metric generation.")
+        return
+
+    sentiment_cache = Path(output_dir) / "sentiment.parquet"
+    analyzer = SentimentAnalyzer()
+    sentiment = analyzer.load_or_score(articles, sentiment_cache)
+    print(f"[ANALYTICS] Scored sentiment for {len(sentiment)} articles → {sentiment_cache}")
+
+    builder = AnalyticsMetricsBuilder(articles, sentiment, Path(output_dir))
+    paths = builder.persist()
+    print("[ANALYTICS] Metrics persisted:")
+    for key, path in paths.items():
+        print(f"  - {key}: {path}")
+
 def main():
     load_dotenv()
 
@@ -135,6 +175,11 @@ def main():
     ip.add_argument("--input", required=True, help="Clean JSONL (e.g., data/processed/articles_clean.jsonl)")
     ip.add_argument("--cfg", default="config/rag.yml", help="RAG config file")
 
+    ap_an = sub.add_parser("analytics")
+    ap_an.add_argument("--rag-cfg", default="config/rag.yml", help="RAG config file")
+    ap_an.add_argument("--ticker-cfg", default="config/tickers.yml", help="Ticker metadata for enrichment")
+    ap_an.add_argument("--out-dir", default="data/analytics", help="Output directory for analytics artifacts")
+
     # all
     ap_all = sub.add_parser("all")
     ap_all.add_argument("--feeds", default="config/feeds.yml", help="Feed sources config")
@@ -142,6 +187,9 @@ def main():
     ap_all.add_argument("--clean-jsonl", default="data/processed/articles_clean.jsonl")
     ap_all.add_argument("--clean-csv", default="data/processed/articles_clean.csv")
     ap_all.add_argument("--rag-cfg", default="config/rag.yml")
+    ap_all.add_argument("--ticker-cfg", default="config/tickers.yml")
+    ap_all.add_argument("--analytics-dir", default="data/analytics")
+    ap_all.add_argument("--skip-analytics", action="store_true")
 
     args = ap.parse_args()
 
@@ -160,6 +208,9 @@ def main():
         _ensure_gemini_credentials()
         run_index(args.input, args.cfg)
 
+    elif args.cmd == "analytics":
+        run_analytics(args.rag_cfg, args.ticker_cfg, output_dir=args.out_dir)
+
     elif args.cmd == "all":
         # 1) scrape
         run_scrape(args.feeds, args.raw_jsonl)
@@ -172,6 +223,8 @@ def main():
         # 3) index
         _ensure_gemini_credentials()
         run_index(args.clean_jsonl, args.rag_cfg)
+        if not args.skip_analytics:
+            run_analytics(args.rag_cfg, args.ticker_cfg, output_dir=args.analytics_dir)
 
 if __name__ == "__main__":
     main()
