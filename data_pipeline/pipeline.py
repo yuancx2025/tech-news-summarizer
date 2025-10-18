@@ -13,6 +13,13 @@ from data_pipeline.scrape import load_config, crawl_domain, write_jsonl
 from data_pipeline.clean import load_jsonl as load_clean_jsonl, normalize_record, dedupe_exact, write_jsonl as write_clean_jsonl, write_csv
 from src.rag.ingest import ingest_jsonl_to_chroma
 
+
+def _ensure_gemini_credentials() -> str:
+    key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if not key:
+        raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY is required for indexing.")
+    return key
+
 def run_scrape(config_path: str, out_jsonl: str, per_request_sleep: float = 0.4) -> None:
     cfg = load_config(config_path)
     sources = cfg.get("sources", [])
@@ -150,8 +157,7 @@ def main():
         )
 
     elif args.cmd == "index":
-        if not os.getenv("OPENAI_API_KEY"):
-            raise ValueError("OPENAI_API_KEY is required for indexing.")
+        _ensure_gemini_credentials()
         run_index(args.input, args.cfg)
 
     elif args.cmd == "all":
@@ -164,8 +170,7 @@ def main():
             out_csv=args.clean_csv,
         )
         # 3) index
-        if not os.getenv("OPENAI_API_KEY"):
-            raise ValueError("OPENAI_API_KEY is required for indexing.")
+        _ensure_gemini_credentials()
         run_index(args.clean_jsonl, args.rag_cfg)
 
 if __name__ == "__main__":
