@@ -212,19 +212,39 @@ def ingest_articles_to_chroma(
         f"chroma_dir={chroma_dir}"
     )
 
+
+def ingest_jsonl_to_chroma(
+    input_path: str,
+    chroma_dir: str,
+    embedding_model: str = "models/text-embedding-004",
+    chunk_size: int = 1000,
+    chunk_overlap: int = 100,
+    min_chars: int = 300,
+    separators: Optional[List[str]] = None,
+    batch_limit: int = 1500,
+):
+    """Backward-compatible wrapper for legacy pipeline entrypoints."""
+    return ingest_articles_to_chroma(
+        input_path=input_path,
+        chroma_dir=chroma_dir,
+        embedding_model=embedding_model,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        min_chars=min_chars,
+        separators=separators,
+        batch_limit=batch_limit,
+    )
+
 def _flush_add(vs: Chroma, docs: List[Document]) -> None:
     # Convert complex metadata to ChromaDB-compatible format
     processed_docs = []
     for doc in docs:
         processed_metadata = {}
         for key, value in doc.metadata.items():
-            if isinstance(value, list):
-                # Convert lists to comma-separated strings
-                processed_metadata[key] = ",".join(str(item) for item in value)
+            if isinstance(value, (list, tuple, set)):
+                processed_metadata[key] = [str(item) for item in value]
             elif isinstance(value, dict):
-                # Convert dicts to JSON strings
-                import json
-                processed_metadata[key] = json.dumps(value)
+                processed_metadata[key] = orjson.dumps(value).decode("utf-8")
             else:
                 processed_metadata[key] = value
         
@@ -241,7 +261,7 @@ def _flush_add(vs: Chroma, docs: List[Document]) -> None:
 
 if __name__ == "__main__":
     import argparse, yaml
-    p = argparse.ArgumentParser(description="Ingest cleaned JSONL into Chroma with OpenAI embeddings.")
+    p = argparse.ArgumentParser(description="Ingest cleaned JSONL into Chroma with Gemini embeddings.")
     p.add_argument("--in", dest="input_path", required=True, help="Path to articles_clean.jsonl")
     p.add_argument("--cfg", dest="cfg_path", default="config/rag.yml", help="Path to rag.yml")
     args = p.parse_args()

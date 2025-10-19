@@ -21,9 +21,14 @@ dateparser>=1.2.0
 # === Data Visualization ===
 matplotlib>=3.9.0
 seaborn>=0.13.2
+plotly>=5.24.0
+
+# Optional Dash integration for analytics dashboards
+dash>=2.17.0
 
 # === Config Handling ===
 PyYAML>=6.0.2
+pyarrow>=15.0.0
 
 # === Testing ===
 pytest>=8.0.0
@@ -56,6 +61,7 @@ orjson>=3.10.0
 streamlit>=1.38.0
 fastapi>=0.115.0
 uvicorn>=0.30.0
+vaderSentiment>=3.3.2
 
 # === Evaluation ===
 rouge-score 

@@ -19,6 +19,15 @@ except Exception as e:
     raise RuntimeError("Could not import src.rag.ingest.ingest_jsonl_to_chroma. "
                        "Ensure your PYTHONPATH includes the project root.") from e
 
+
+def _ensure_gemini_credentials() -> str:
+    key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if not key:
+        raise ValueError(
+            "GOOGLE_API_KEY or GEMINI_API_KEY environment variable is required. Set it in .env or shell."
+        )
+    return key
+
 def sanity_check(input_path: str, sample_size: int = 5):
     """Verify cleaned schema has key fields by sampling multiple records."""
     required = {"id", "title", "text", "url", "published_at"}
@@ -48,8 +57,7 @@ def main():
     ap.add_argument("--config", default="config/rag.yml", help="RAG config with indexing params")
     args = ap.parse_args()
 
-    if not os.getenv("OPENAI_API_KEY"):
-        raise ValueError("OPENAI_API_KEY environment variable is required. Set it in .env or shell.")
+    _ensure_gemini_credentials()
 
     sanity_check(args.input_path, sample_size=5)
     
