@@ -42,10 +42,10 @@ def _iter_collection(
     offset = 0
     while True:
         res = collection.get(  # type: ignore[attr-defined]
-            where=dict(where or {}),
+            where=dict(where) if where else None,
             limit=page_size,
             offset=offset,
-            include=["ids", *include_fields],
+            include=include_fields,
         )
         ids: List[str] = res.get("ids", [])
         documents: List[str] = res.get("documents", [])

@@ -62,10 +62,10 @@ QA_MAP_PROMPT = ChatPromptTemplate.from_messages([
     (
         "system",
         "You extract timeline events that directly answer the user's question."
-        " Respond ONLY with JSON like {\"events\": [...]}. Each event should include"
+        " Respond ONLY with JSON like {{\"events\": [...]}}. Each event should include"
         " date (YYYY-MM-DD), summary (≤40 words, factual), source, url, and citation"
         " text such as (SOURCE, YYYY-MM-DD). Use provided metadata when helpful."
-        " Return {\"events\": []} if nothing is relevant.",
+        " Return {{\"events\": []}} if nothing is relevant.",
     ),
     (
         "human",
