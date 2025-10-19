@@ -373,56 +373,56 @@ Interactive UI features:
 
 ```
 tech-news-summarizer/
-├── app/                              # Streamlit frontends
+├── app/                             # Streamlit frontends
 │   ├── ui_streamlit.py              # Main UI (summarize/recommend/Q&A)
 │   └── dashboard_streamlit.py       # Analytics dashboard
 │
-├── data_pipeline/                    # ETL pipeline
+├── data_pipeline/                   # ETL pipeline
 │   ├── __init__.py
 │   ├── scrape.py                    # Web scraping (newspaper3k, feedparser)
 │   ├── clean.py                     # Text normalization & validation
 │   └── pipeline.py                  # Orchestrator (scrape → clean → index → analytics)
 │
-├── src/                              # Core backend
+├── src/                             # Core backend
 │   ├── embeddings.py                # OpenAI embedding utilities
 │   ├── rag/                         # RAG components
-│   │   ├── ingest.py               # ChromaDB ingestion
-│   │   ├── retriever.py            # Semantic search & MMR
-│   │   ├── ranking.py              # Relevance + recency scoring
-│   │   ├── chains.py               # LangChain prompts & map-reduce
-│   │   ├── schemas.py              # Pydantic models
-│   │   ├── time_utils.py           # Natural language date parsing
-│   │   └── tool.py                 # RAGTool (main orchestrator)
+│   │   ├── ingest.py                # ChromaDB ingestion
+│   │   ├── retriever.py             # Semantic search & MMR
+│   │   ├── ranking.py               # Relevance + recency scoring
+│   │   ├── chains.py                # LangChain prompts & map-reduce
+│   │   ├── schemas.py               # Pydantic models
+│   │   ├── time_utils.py            # Natural language date parsing
+│   │   └── tool.py                  # RAGTool (main orchestrator)
 │   ├── analytics/                   # Analytics engine
-│   │   ├── catalog.py              # Article collection from Chroma
-│   │   ├── sentiment.py            # Sentiment scoring
-│   │   └── metrics.py              # Metrics builder (sector, tickers, co-occurrence)
+│   │   ├── catalog.py               # Article collection from Chroma
+│   │   ├── sentiment.py             # Sentiment scoring
+│   │   └── metrics.py               # Metrics builder (sector, tickers, co-occurrence)
 │   └── api/                         # FastAPI backend
-│       └── api_main.py             # REST endpoints
+│       └── api_main.py              # REST endpoints
 │
-├── config/                           # Configuration files
+├── config/                          # Configuration files
 │   ├── feeds.yml                    # News sources & scraping params
 │   ├── feeds_finance.yml            # Finance-specific sources
 │   ├── rag.yml                      # RAG settings (embeddings, chunking, retrieval)
 │   └── tickers.yml                  # Ticker symbol → sector mapping
 │
-├── data/                             # Data storage (gitignored)
+├── data/                            # Data storage (gitignored)
 │   ├── raw/                         # Scraped articles
 │   ├── processed/                   # Cleaned & validated articles
 │   ├── vdb/chroma/                  # ChromaDB vector store
 │   └── analytics/                   # Pre-computed metrics (JSON/Parquet)
 │
-├── tests/                            # Test suite
+├── tests/                           # Test suite
 │   ├── conftest.py                  # Pytest fixtures
-│   ├── test_rag_qa.py              # RAG Q&A tests
-│   ├── test_api_qa.py              # API endpoint tests
+│   ├── test_rag_qa.py               # RAG Q&A tests
+│   ├── test_api_qa.py               # API endpoint tests
 │   └── analytics/                   # Analytics module tests
 │       ├── test_catalog.py
 │       ├── test_metrics.py
 │       └── test_sentiment.py
 │
-├── notebooks/                        # Jupyter notebooks for EDA
-├── requirements.txt                  # Python dependencies
+├── notebooks/                       # Jupyter notebooks for EDA
+├── requirements.txt                 # Python dependencies
 ├── README.md
 ├── LICENSE
 └── .gitignore
