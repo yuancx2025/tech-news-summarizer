@@ -7,7 +7,14 @@ import yaml, os, json
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.rag.tool import RAGTool
-from src.rag.schemas import SummarizeRequest, SummarizeResponse, RecommendRequest, RecommendResponse
+from src.rag.schemas import (
+    SummarizeRequest,
+    SummarizeResponse,
+    RecommendRequest,
+    RecommendResponse,
+    QuestionRequest,
+    QuestionResponse,
+)
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -156,7 +163,7 @@ def summarize(req: SummarizeRequest):
     try:
         print(f"[INFO] /summarize request: mode={req.mode}, query={req.query}, days_back={req.days_back}")
         result = rag.summarize(req)
-        print(f"[INFO] /summarize success: {len(result.bullets)} bullets, {len(result.sources)} sources")
+        print(f"[INFO] /summarize success: {len(result.bullets)} bullets")
         return result
     except Exception as e:
         print(f"[ERROR] /summarize failed: {e}")
@@ -170,4 +177,17 @@ def recommend(req: RecommendRequest):
         return rag.recommend(req)
     except Exception as e:
         print(f"[ERROR] /recommend failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/qa", response_model=QuestionResponse)
+def qa(req: QuestionRequest):
+    try:
+        print(
+            f"[INFO] /qa question='{req.question}' tickers={req.tickers} sources={req.sources}"
+        )
+        result = rag.answer_question(req)
+        return result
+    except Exception as e:
+        print(f"[ERROR] /qa failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

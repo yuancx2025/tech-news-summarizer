@@ -3,6 +3,7 @@
 from __future__ import annotations
 from typing import List, Dict, Any, Tuple, Literal, Optional
 import os
+import json
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
@@ -57,6 +58,39 @@ REASON_PROMPT = ChatPromptTemplate.from_messages([
      "Write ONE sentence (≤30 words) on why this user will care. Mention ≤1 ticker & one angle.")
 ])
 
+QA_MAP_PROMPT = ChatPromptTemplate.from_messages([
+    (
+        "system",
+        "You extract timeline events that directly answer the user's question."
+        " Respond ONLY with JSON like {\"events\": [...]}. Each event should include"
+        " date (YYYY-MM-DD), summary (≤40 words, factual), source, url, and citation"
+        " text such as (SOURCE, YYYY-MM-DD). Use provided metadata when helpful."
+        " Return {\"events\": []} if nothing is relevant.",
+    ),
+    (
+        "human",
+        "Question: {question}\n"
+        "Title: {title}\nSource: {source}\nDate: {date}\nURL: {url}\n\n"
+        "Content:\n{chunk}\n",
+    ),
+])
+
+QA_REDUCE_PROMPT = ChatPromptTemplate.from_messages([
+    (
+        "system",
+        "You synthesize trend-aware answers from a dated event timeline."
+        " Write 2-4 sentences that address the user's question, weaving in"
+        " the key developments. Reference citations exactly as provided in the"
+        " timeline (e.g., append (SOURCE, YYYY-MM-DD) at the end of facts)."
+        " If there is insufficient evidence, say so.",
+    ),
+    (
+        "human",
+        "Question: {question}\n"
+        "Timeline:\n{timeline}",
+    ),
+])
+
 # ---------- Helpers ----------
 def _extract_bullets(text: str) -> List[str]:
     lines = [l.strip("•- ").strip() for l in text.strip().splitlines() if l.strip()]
@@ -85,6 +119,21 @@ def _fmt_citation(source: str | None, date: str | None) -> str:
     src = source or "Source"
     dt = (date or "")[:10]
     return f"({src}, {dt})" if dt else f"({src})"
+
+
+def _safe_json_loads(text: str) -> Dict[str, Any]:
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        text = text.strip()
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            try:
+                return json.loads(text[start : end + 1])
+            except json.JSONDecodeError:
+                pass
+    return {"events": []}
 
 # ---------- Map → Reduce summarization ----------
 def map_summarize_per_doc(llm, doc) -> List[str]:
@@ -123,3 +172,89 @@ def generate_reason(llm, user_profile: Dict[str, Any], meta: Dict[str, Any]) -> 
     # light post-trim
     s = out.content.strip().replace("\n", " ")
     return s[:240]
+
+
+# ---------- QA map-reduce ----------
+def map_events_from_doc(llm, question: str, doc) -> List[Dict[str, Any]]:
+    meta = doc.metadata
+    raw = (QA_MAP_PROMPT | llm).invoke({
+        "question": question,
+        "title": meta.get("title") or "",
+        "source": meta.get("source_short") or "",
+        "date": meta.get("published_at") or "",
+        "url": meta.get("url_canonical") or "",
+        "chunk": doc.page_content,
+    })
+    data = _safe_json_loads(raw.content)
+    events = data.get("events") or []
+    normalized: List[Dict[str, Any]] = []
+    for ev in events:
+        summary = (ev or {}).get("summary") or ""
+        if not summary.strip():
+            continue
+        date = (ev or {}).get("date") or meta.get("published_at") or ""
+        source = (ev or {}).get("source") or meta.get("source_short") or ""
+        url = (ev or {}).get("url") or meta.get("url_canonical") or ""
+        citation = (ev or {}).get("citation")
+        if not citation:
+            citation = _fmt_citation(source, date)
+        normalized.append(
+            {
+                "date": date[:10] if isinstance(date, str) else str(date),
+                "summary": summary.strip(),
+                "source": source or None,
+                "url": url or None,
+                "citation": citation,
+            }
+        )
+    return normalized
+
+
+def reduce_answer_from_events(llm, question: str, events: List[Dict[str, Any]]) -> Tuple[str, List[str]]:
+    if not events:
+        return "I could not find enough evidence to answer that question confidently.", []
+
+    lines = []
+    for idx, ev in enumerate(events, start=1):
+        citation = ev.get("citation") or ""
+        date = ev.get("date") or "Unknown"
+        summary = ev.get("summary") or ""
+        lines.append(f"{idx}. {date} – {summary} {citation}".strip())
+
+    joined = "\n".join(lines)
+    out = (QA_REDUCE_PROMPT | llm).invoke({"question": question, "timeline": joined})
+    answer = out.content.strip()
+    found = re.findall(r"\([^\)]+\d{4}-\d{2}-\d{2}\)", answer)
+    citations = list(dict.fromkeys(found))
+    if not citations:
+        citations = [ev.get("citation") for ev in events if ev.get("citation")]
+        citations = list(dict.fromkeys(citations))
+    return answer, citations
+
+
+def run_qa_chain(
+    llm_map,
+    llm_reduce,
+    question: str,
+    docs: List[Any],
+    *,
+    max_events: int = 6,
+) -> Tuple[str, List[Dict[str, Any]], List[str]]:
+    events: List[Dict[str, Any]] = []
+    for doc in docs:
+        events.extend(map_events_from_doc(llm_map, question, doc))
+
+    # Deduplicate by (date, summary)
+    deduped: List[Dict[str, Any]] = []
+    seen = set()
+    for ev in events:
+        key = (ev.get("date"), ev.get("summary"))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(ev)
+
+    deduped.sort(key=lambda e: (e.get("date") or "9999-99-99"))
+    trimmed = deduped[:max_events]
+    answer, citations = reduce_answer_from_events(llm_reduce, question, trimmed)
+    return answer, trimmed, citations

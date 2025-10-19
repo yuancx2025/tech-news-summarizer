@@ -12,17 +12,29 @@ from langchain.schema import Document
 
 from src.embeddings import get_embeddings
 from src.rag.schemas import (
-    SummarizeRequest, SummarizeResponse, SummaryBullet,
-    RecommendRequest, RecommendResponse, RecommendItem
+    SummarizeRequest,
+    SummarizeResponse,
+    SummaryBullet,
+    RecommendRequest,
+    RecommendResponse,
+    RecommendItem,
+    QuestionRequest,
+    QuestionResponse,
+    TimelineItem,
 )
 from src.rag.retriever import retrieve_with_config
 from src.rag.ranking import (
     score_and_rank_candidates, filter_near_duplicate_titles
 )
 from src.rag.chains import (
-    make_llm, map_summarize_per_doc, reduce_merge_bullets, generate_reason
+    make_llm,
+    map_summarize_per_doc,
+    reduce_merge_bullets,
+    generate_reason,
+    run_qa_chain,
 )
 from src.rag.ingest import _canonicalize_url
+from src.rag.time_utils import resolve_temporal_filter
 
 # --------- RAGTool ----------
 class RAGTool:
@@ -51,6 +63,20 @@ class RAGTool:
             model=cfg.get("llm_model", "gemini-2.5-flash"),
             temperature=0.0,
             max_tokens=250,
+            provider="gemini",
+            api_key=self.gemini_api_key,
+        )
+        self.llm_qa_map = make_llm(
+            model=cfg.get("llm_model", "gemini-2.5-flash"),
+            temperature=0.0,
+            max_tokens=400,
+            provider="gemini",
+            api_key=self.gemini_api_key,
+        )
+        self.llm_qa_reduce = make_llm(
+            model=cfg.get("llm_model", "gemini-2.5-flash"),
+            temperature=0.1,
+            max_tokens=600,
             provider="gemini",
             api_key=self.gemini_api_key,
         )
@@ -186,3 +212,64 @@ class RAGTool:
         if user.sources: bits.append(" ".join(user.sources))
         phrase = " ".join(bits) if bits else "technology and finance"
         return f"Notable developments and analysis for {phrase}"
+
+    # ---- Question Answering ----
+    def answer_question(self, req: QuestionRequest) -> QuestionResponse:
+        start_date, end_date, days_back = resolve_temporal_filter(
+            req.temporal_filter,
+            default_days_back=req.days_back,
+        )
+
+        docs = retrieve_with_config(
+            req.question,
+            self.cfg,
+            tickers=req.tickers,
+            sources=req.sources,
+            start_date=start_date,
+            end_date=end_date,
+            days_back_start=days_back,
+            k_final=req.context_k,
+            fetch_k=max(req.context_k, req.context_k * 2),
+        )
+
+        if not docs:
+            return QuestionResponse(answer="No supporting articles were found.", timeline=[], citations=[])
+
+        answer_text, events, citations = run_qa_chain(
+            self.llm_qa_map,
+            self.llm_qa_reduce,
+            req.question,
+            docs,
+            max_events=req.max_events,
+        )
+
+        # Normalize timeline ordering & shape
+        def _event_key(ev: Dict[str, Any]) -> str:
+            date = ev.get("date") or "9999-99-99"
+            return date
+
+        events_sorted = sorted(events, key=_event_key)
+
+        timeline_items = [
+            TimelineItem(
+                date=ev.get("date"),
+                summary=ev.get("summary", ""),
+                source=ev.get("source"),
+                url=ev.get("url"),
+                citation=ev.get("citation"),
+            )
+            for ev in events_sorted
+        ]
+
+        all_citations = list(dict.fromkeys([c for c in citations if c]))
+        if not all_citations:
+            all_citations = [
+                ev.citation for ev in timeline_items if ev.citation
+            ]
+            all_citations = list(dict.fromkeys(all_citations))
+
+        return QuestionResponse(
+            answer=answer_text,
+            timeline=timeline_items,
+            citations=all_citations,
+        )
